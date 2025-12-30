@@ -2,7 +2,7 @@ import axios from 'axios';
 
 // Create axios instance
 const api = axios.create({
-    baseURL: 'http://localhost:3000'
+    baseURL: 'https://data-backend-kappa.vercel.app/'
 });
 
 // Add token to all requests automatically

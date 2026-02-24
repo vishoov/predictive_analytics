@@ -13,25 +13,25 @@ const ReportsList = () => {
     const [totalReports, setTotalReports] = useState(0);
     const [itemsPerPage, setItemsPerPage] = useState(10);
 
-    // Server-side status counts — NOT derived from local reports array
+    // Server-side status counts
     const [verifiedCount, setVerifiedCount] = useState(0);
     const [needsReviewCount, setNeedsReviewCount] = useState(0);
     const [pendingCount, setPendingCount] = useState(0);
 
     // Search & Filters
     const [searchTerm, setSearchTerm] = useState('');
-    const [statusFilter, setStatusFilter] = useState('all');   // replaces verifiedFilter
+    const [statusFilter, setStatusFilter] = useState('all');
     const [genderFilter, setGenderFilter] = useState('all');
     const [diseaseFilter, setDiseaseFilter] = useState('all');
-    const [sortBy, setSortBy] = useState('createdAt');
+    const [sortBy, setSortBy] = useState('dateOfStudy');
     const [sortOrder, setSortOrder] = useState('desc');
 
     const diseaseOptions = [
-        { value: 'all', label: 'All Diseases' },
+        { value: 'all',  label: 'All Diseases' },
         { value: 'DESD', label: 'DESD - Detrusor External Sphincter Dyssynergia' },
-        { value: 'DUA', label: 'DUA - Detrusor Underactivity' },
-        { value: 'DOA', label: 'DOA - Detrusor Overactivity' },
-        { value: 'BOO', label: 'BOO - Bladder Outlet Obstruction' },
+        { value: 'DUA',  label: 'DUA - Detrusor Underactivity' },
+        { value: 'DOA',  label: 'DOA - Detrusor Overactivity' },
+        { value: 'BOO',  label: 'BOO - Bladder Outlet Obstruction' },
     ];
 
     const statusOptions = [
@@ -52,12 +52,12 @@ const ReportsList = () => {
                 setError(null);
 
                 const params = {
-                    page: currentPage,
-                    limit: itemsPerPage,
-                    search: searchTerm,
-                    status: statusFilter !== 'all' ? statusFilter : undefined,
-                    gender: genderFilter !== 'all' ? genderFilter : undefined,
-                    disease: diseaseFilter !== 'all' ? diseaseFilter : undefined,
+                    page:     currentPage,
+                    limit:    itemsPerPage,
+                    search:   searchTerm,
+                    status:   statusFilter  !== 'all' ? statusFilter  : undefined,
+                    gender:   genderFilter  !== 'all' ? genderFilter  : undefined,
+                    disease:  diseaseFilter !== 'all' ? diseaseFilter : undefined,
                     sortBy,
                     sortOrder,
                 };
@@ -68,11 +68,9 @@ const ReportsList = () => {
                     setReports(response.data.reports);
                     setTotalPages(response.data.totalPages);
                     setTotalReports(response.data.totalReports);
-
-                    // Server-provided counts — accurate across ALL pages
-                    setVerifiedCount(response.data.verifiedCount ?? 0);
+                    setVerifiedCount(response.data.verifiedCount    ?? 0);
                     setNeedsReviewCount(response.data.needsReviewCount ?? 0);
-                    setPendingCount(response.data.pendingCount ?? 0);
+                    setPendingCount(response.data.pendingCount      ?? 0);
                 }
             } catch (err) {
                 console.error('Error fetching reports:', err);
@@ -112,12 +110,11 @@ const ReportsList = () => {
         setStatusFilter('all');
         setGenderFilter('all');
         setDiseaseFilter('all');
-        setSortBy('createdAt');
+        setSortBy('dateOfStudy');
         setSortOrder('desc');
         setCurrentPage(1);
     };
 
-    // Inline status change — updates local row without refetch
     const handleStatusChange = (reportId, newStatus) => {
         setReports(prev =>
             prev.map(r => r._id === reportId ? { ...r, status: newStatus } : r)
@@ -125,10 +122,12 @@ const ReportsList = () => {
     };
 
     // ── Helpers ───────────────────────────────────────────────────────────────
-    const formatDate = (date) => new Date(date).toLocaleDateString('en-US', {
-        year: 'numeric', month: 'short', day: 'numeric',
-        hour: '2-digit', minute: '2-digit',
-    });
+    const formatDate = (date) => {
+        if (!date) return 'N/A';
+        return new Date(date).toLocaleDateString('en-US', {
+            year: 'numeric', month: 'short', day: 'numeric',
+        });
+    };
 
     const viewReport = (reportId) => {
         window.location.href = `/admin-dashboard/reports/${reportId}`;
@@ -137,9 +136,9 @@ const ReportsList = () => {
     const getReportDiseases = (report) => {
         const diseases = [];
         if (report.detrusorExternalSphincterDyssynergiaDESD) diseases.push('DESD');
-        if (report.detrusorUnderactivityDUA) diseases.push('DUA');
-        if (report.detrusorOveractivityDOA) diseases.push('DOA');
-        if (report.bladderOutletObstructionBOO) diseases.push('BOO');
+        if (report.detrusorUnderactivityDUA)                  diseases.push('DUA');
+        if (report.detrusorOveractivityDOA)                   diseases.push('DOA');
+        if (report.bladderOutletObstructionBOO)               diseases.push('BOO');
         return diseases;
     };
 
@@ -252,7 +251,7 @@ const ReportsList = () => {
                         </select>
                     </div>
 
-                    {/* Status Filter — updated to match new status strings */}
+                    {/* Status Filter */}
                     <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">Status</label>
                         <select
@@ -337,7 +336,7 @@ const ReportsList = () => {
                 )}
             </div>
 
-            {/* ── Stats Cards — all from server, never from local array ── */}
+            {/* ── Stats Cards ── */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
                     <div className="flex items-center">
@@ -409,13 +408,22 @@ const ReportsList = () => {
                                 <th onClick={() => handleSort('age')} className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors">
                                     <div className="flex items-center space-x-1"><span>Age</span>{getSortIcon('age')}</div>
                                 </th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Gender</th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Diseases</th>
-                                <th onClick={() => handleSort('createdAt')} className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors">
-                                    <div className="flex items-center space-x-1"><span>Created At</span>{getSortIcon('createdAt')}</div>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                    Gender
                                 </th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                    Diseases
+                                </th>
+                                {/* ── Date of Investigation ── */}
+                                <th onClick={() => handleSort('dateOfStudy')} className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors">
+                                    <div className="flex items-center space-x-1"><span>Date of Investigation</span>{getSortIcon('dateOfStudy')}</div>
+                                </th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                    Status
+                                </th>
+                                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                    Actions
+                                </th>
                             </tr>
                         </thead>
                         <tbody className="bg-white divide-y divide-gray-200">
@@ -430,6 +438,7 @@ const ReportsList = () => {
                                             className="hover:bg-gray-50 transition-colors cursor-pointer"
                                             onClick={() => viewReport(report._id)}
                                         >
+                                            {/* Patient ID */}
                                             <td className="px-6 py-4 whitespace-nowrap">
                                                 <div className="flex items-center">
                                                     <div className="flex-shrink-0 h-10 w-10 bg-indigo-100 rounded-lg flex items-center justify-center">
@@ -437,12 +446,18 @@ const ReportsList = () => {
                                                             {report.patientId.substring(0, 2).toUpperCase()}
                                                         </span>
                                                     </div>
-                                                    <div className="ml-4 text-sm font-medium text-gray-900">{report.patientId}</div>
+                                                    <div className="ml-4 text-sm font-medium text-gray-900">
+                                                        {report.patientId}
+                                                    </div>
                                                 </div>
                                             </td>
+
+                                            {/* Age */}
                                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                                                 {report.age || 'N/A'}
                                             </td>
+
+                                            {/* Gender */}
                                             <td className="px-6 py-4 whitespace-nowrap">
                                                 <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
                                                     report.gender === 'Male'   ? 'bg-blue-100 text-blue-800' :
@@ -452,6 +467,8 @@ const ReportsList = () => {
                                                     {report.gender || 'N/A'}
                                                 </span>
                                             </td>
+
+                                            {/* Diseases */}
                                             <td className="px-6 py-4">
                                                 <div className="flex flex-wrap gap-1">
                                                     {diseases.length > 0 ? diseases.map(d => (
@@ -463,11 +480,13 @@ const ReportsList = () => {
                                                     )}
                                                 </div>
                                             </td>
+
+                                            {/* ── Date of Investigation ── */}
                                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                                {formatDate(report.createdAt)}
+                                                {report.dateOfStudy ? formatDate(report.dateOfStudy) : 'N/A'}
                                             </td>
 
-                                            {/* ── Status cell — stops row click, uses ReportStatusBadge ── */}
+                                            {/* Status badge */}
                                             <td
                                                 className="px-6 py-4 whitespace-nowrap"
                                                 onClick={(e) => e.stopPropagation()}
@@ -481,6 +500,7 @@ const ReportsList = () => {
                                                 />
                                             </td>
 
+                                            {/* Actions */}
                                             <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                                                 <button
                                                     onClick={(e) => { e.stopPropagation(); viewReport(report._id); }}
@@ -547,10 +567,10 @@ const ReportsList = () => {
                                 <div className="hidden sm:flex items-center space-x-1">
                                     {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
                                         let pageNum;
-                                        if (totalPages <= 5)            pageNum = i + 1;
-                                        else if (currentPage <= 3)      pageNum = i + 1;
+                                        if (totalPages <= 5)                    pageNum = i + 1;
+                                        else if (currentPage <= 3)              pageNum = i + 1;
                                         else if (currentPage >= totalPages - 2) pageNum = totalPages - 4 + i;
-                                        else                            pageNum = currentPage - 2 + i;
+                                        else                                    pageNum = currentPage - 2 + i;
                                         return (
                                             <button
                                                 key={i}

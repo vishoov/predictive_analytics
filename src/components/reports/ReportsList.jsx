@@ -1,26 +1,31 @@
 import React, { useState, useEffect } from 'react';
 import { reportsAPI } from '../../utils/analytics.utils';
+import ReportStatusBadge from '../reviews/ReportStatusBadge.jsx';
 
 const ReportsList = () => {
     const [reports, setReports] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
-    
-    // Pagination & Filters
+
+    // Pagination
     const [currentPage, setCurrentPage] = useState(1);
     const [totalPages, setTotalPages] = useState(1);
     const [totalReports, setTotalReports] = useState(0);
     const [itemsPerPage, setItemsPerPage] = useState(10);
-    
+
+    // Server-side status counts — NOT derived from local reports array
+    const [verifiedCount, setVerifiedCount] = useState(0);
+    const [needsReviewCount, setNeedsReviewCount] = useState(0);
+    const [pendingCount, setPendingCount] = useState(0);
+
     // Search & Filters
     const [searchTerm, setSearchTerm] = useState('');
-    const [verifiedFilter, setVerifiedFilter] = useState('all');
+    const [statusFilter, setStatusFilter] = useState('all');   // replaces verifiedFilter
     const [genderFilter, setGenderFilter] = useState('all');
     const [diseaseFilter, setDiseaseFilter] = useState('all');
     const [sortBy, setSortBy] = useState('createdAt');
     const [sortOrder, setSortOrder] = useState('desc');
 
-    // Disease options
     const diseaseOptions = [
         { value: 'all', label: 'All Diseases' },
         { value: 'DESD', label: 'DESD - Detrusor External Sphincter Dyssynergia' },
@@ -29,7 +34,15 @@ const ReportsList = () => {
         { value: 'BOO', label: 'BOO - Bladder Outlet Obstruction' },
     ];
 
-    // Fetch reports
+    const statusOptions = [
+        { value: 'all',          label: 'All Status' },
+        { value: 'Pending',      label: 'Pending' },
+        { value: 'Needs Review', label: 'Needs Review' },
+        { value: 'Verified',     label: 'Verified' },
+        { value: 'Rejected',     label: 'Rejected' },
+    ];
+
+    // ── Fetch ─────────────────────────────────────────────────────────────────
     useEffect(() => {
         let isMounted = true;
 
@@ -42,19 +55,24 @@ const ReportsList = () => {
                     page: currentPage,
                     limit: itemsPerPage,
                     search: searchTerm,
-                    verified: verifiedFilter !== 'all' ? verifiedFilter : undefined,
+                    status: statusFilter !== 'all' ? statusFilter : undefined,
                     gender: genderFilter !== 'all' ? genderFilter : undefined,
                     disease: diseaseFilter !== 'all' ? diseaseFilter : undefined,
                     sortBy,
-                    sortOrder
+                    sortOrder,
                 };
 
                 const response = await reportsAPI.search(params);
-                
+
                 if (isMounted) {
                     setReports(response.data.reports);
                     setTotalPages(response.data.totalPages);
                     setTotalReports(response.data.totalReports);
+
+                    // Server-provided counts — accurate across ALL pages
+                    setVerifiedCount(response.data.verifiedCount ?? 0);
+                    setNeedsReviewCount(response.data.needsReviewCount ?? 0);
+                    setPendingCount(response.data.pendingCount ?? 0);
                 }
             } catch (err) {
                 console.error('Error fetching reports:', err);
@@ -62,29 +80,23 @@ const ReportsList = () => {
                     setError(err.response?.data?.message || 'Failed to load reports');
                 }
             } finally {
-                if (isMounted) {
-                    setLoading(false);
-                }
+                if (isMounted) setLoading(false);
             }
         };
 
-        const debounceTimer = setTimeout(() => {
-            fetchReports();
-        }, 300);
-
+        const debounceTimer = setTimeout(fetchReports, 300);
         return () => {
             isMounted = false;
             clearTimeout(debounceTimer);
         };
-    }, [currentPage, itemsPerPage, searchTerm, verifiedFilter, genderFilter, diseaseFilter, sortBy, sortOrder]);
+    }, [currentPage, itemsPerPage, searchTerm, statusFilter, genderFilter, diseaseFilter, sortBy, sortOrder]);
 
-    // Handle search
+    // ── Handlers ──────────────────────────────────────────────────────────────
     const handleSearch = (e) => {
         setSearchTerm(e.target.value);
         setCurrentPage(1);
     };
 
-    // Handle sort
     const handleSort = (field) => {
         if (sortBy === field) {
             setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc');
@@ -95,26 +107,9 @@ const ReportsList = () => {
         setCurrentPage(1);
     };
 
-    // Format date
-    const formatDate = (date) => {
-        return new Date(date).toLocaleDateString('en-US', {
-            year: 'numeric',
-            month: 'short',
-            day: 'numeric',
-            hour: '2-digit',
-            minute: '2-digit'
-        });
-    };
-
-    // View report details
-    const viewReport = (reportId) => {
-        window.location.href = `/admin-dashboard/reports/${reportId}`;
-    };
-
-    // Reset filters
     const resetFilters = () => {
         setSearchTerm('');
-        setVerifiedFilter('all');
+        setStatusFilter('all');
         setGenderFilter('all');
         setDiseaseFilter('all');
         setSortBy('createdAt');
@@ -122,7 +117,23 @@ const ReportsList = () => {
         setCurrentPage(1);
     };
 
-    // Get disease badges for a report
+    // Inline status change — updates local row without refetch
+    const handleStatusChange = (reportId, newStatus) => {
+        setReports(prev =>
+            prev.map(r => r._id === reportId ? { ...r, status: newStatus } : r)
+        );
+    };
+
+    // ── Helpers ───────────────────────────────────────────────────────────────
+    const formatDate = (date) => new Date(date).toLocaleDateString('en-US', {
+        year: 'numeric', month: 'short', day: 'numeric',
+        hour: '2-digit', minute: '2-digit',
+    });
+
+    const viewReport = (reportId) => {
+        window.location.href = `/admin-dashboard/reports/${reportId}`;
+    };
+
     const getReportDiseases = (report) => {
         const diseases = [];
         if (report.detrusorExternalSphincterDyssynergiaDESD) diseases.push('DESD');
@@ -132,38 +143,32 @@ const ReportsList = () => {
         return diseases;
     };
 
-    // Get disease badge color
-    const getDiseaseBadgeColor = (code) => {
-        const colors = {
-            'DESD': 'bg-blue-100 text-blue-800',
-            'DUA': 'bg-purple-100 text-purple-800',
-            'DOA': 'bg-green-100 text-green-800',
-            'BOO': 'bg-orange-100 text-orange-800'
-        };
-        return colors[code] || 'bg-gray-100 text-gray-800';
-    };
+    const getDiseaseBadgeColor = (code) => ({
+        'DESD': 'bg-blue-100 text-blue-800',
+        'DUA':  'bg-purple-100 text-purple-800',
+        'DOA':  'bg-green-100 text-green-800',
+        'BOO':  'bg-orange-100 text-orange-800',
+    }[code] || 'bg-gray-100 text-gray-800');
 
-    // Loading skeleton
+    const hasActiveFilters = searchTerm || statusFilter !== 'all' || genderFilter !== 'all' || diseaseFilter !== 'all';
+
+    // ── Skeleton ──────────────────────────────────────────────────────────────
     const SkeletonRow = () => (
         <tr className="animate-pulse">
-            <td className="px-6 py-4"><div className="h-4 bg-gray-200 rounded w-24"></div></td>
-            <td className="px-6 py-4"><div className="h-4 bg-gray-200 rounded w-12"></div></td>
-            <td className="px-6 py-4"><div className="h-4 bg-gray-200 rounded w-16"></div></td>
-            <td className="px-6 py-4"><div className="h-4 bg-gray-200 rounded w-32"></div></td>
-            <td className="px-6 py-4"><div className="h-4 bg-gray-200 rounded w-24"></div></td>
-            <td className="px-6 py-4"><div className="h-4 bg-gray-200 rounded w-20"></div></td>
-            <td className="px-6 py-4"><div className="h-4 bg-gray-200 rounded w-20"></div></td>
+            {Array.from({ length: 7 }).map((_, i) => (
+                <td key={i} className="px-6 py-4">
+                    <div className="h-4 bg-gray-200 rounded w-full" />
+                </td>
+            ))}
         </tr>
     );
 
     const getSortIcon = (field) => {
-        if (sortBy !== field) {
-            return (
-                <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" />
-                </svg>
-            );
-        }
+        if (sortBy !== field) return (
+            <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" />
+            </svg>
+        );
         return sortOrder === 'asc' ? (
             <svg className="w-4 h-4 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
@@ -175,51 +180,48 @@ const ReportsList = () => {
         );
     };
 
+    // ── Render ────────────────────────────────────────────────────────────────
     return (
         <div className="space-y-6">
-            {/* Header */}
+
+            {/* ── Header ── */}
             <div className="bg-gradient-to-r from-blue-600 to-indigo-600 rounded-2xl shadow-xl p-6 md:p-8 text-white">
                 <div className="flex items-center justify-between">
                     <div>
-                        <h1 className="text-2xl md:text-3xl font-bold mb-2">
-                            Urodynamic Reports
-                        </h1>
-                        <p className="text-blue-100 text-sm md:text-base">
-                            View and manage all patient reports
-                        </p>
+                        <h1 className="text-2xl md:text-3xl font-bold mb-2">Urodynamic Reports</h1>
+                        <p className="text-blue-100 text-sm md:text-base">View and manage all patient reports</p>
                     </div>
-                    {/* <button
-                        onClick={() => window.location.href = '/reports/new'}
+                    <button
+                        onClick={() => window.location.href = '/admin-dashboard/reports/new'}
                         className="hidden md:flex items-center px-4 py-2 bg-white text-blue-600 rounded-lg font-medium hover:bg-blue-50 transition-colors"
                     >
                         <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
                         </svg>
                         New Report
-                    </button> */}
+                    </button>
                 </div>
             </div>
 
-            {/* Error Alert */}
+            {/* ── Error ── */}
             {error && (
                 <div className="bg-red-50 border-l-4 border-red-500 p-4 rounded-lg" role="alert">
                     <div className="flex items-center">
                         <svg className="w-5 h-5 text-red-500 mr-3" fill="currentColor" viewBox="0 0 20 20">
-                            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd"/>
+                            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
                         </svg>
                         <p className="text-sm font-medium text-red-800">{error}</p>
                     </div>
                 </div>
             )}
 
-            {/* Filters & Search */}
+            {/* ── Filters ── */}
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
+
                     {/* Search */}
                     <div className="lg:col-span-2">
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                            Search Patient ID
-                        </label>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Search Patient ID</label>
                         <div className="relative">
                             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                                 <svg className="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -238,55 +240,38 @@ const ReportsList = () => {
 
                     {/* Disease Filter */}
                     <div className="lg:col-span-2">
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                            Disease / Condition
-                        </label>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Disease / Condition</label>
                         <select
                             value={diseaseFilter}
-                            onChange={(e) => {
-                                setDiseaseFilter(e.target.value);
-                                setCurrentPage(1);
-                            }}
+                            onChange={(e) => { setDiseaseFilter(e.target.value); setCurrentPage(1); }}
                             className="block w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm"
                         >
                             {diseaseOptions.map(option => (
-                                <option key={option.value} value={option.value}>
-                                    {option.label}
-                                </option>
+                                <option key={option.value} value={option.value}>{option.label}</option>
                             ))}
                         </select>
                     </div>
 
-                    {/* Verification Filter */}
+                    {/* Status Filter — updated to match new status strings */}
                     <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                            Status
-                        </label>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Status</label>
                         <select
-                            value={verifiedFilter}
-                            onChange={(e) => {
-                                setVerifiedFilter(e.target.value);
-                                setCurrentPage(1);
-                            }}
+                            value={statusFilter}
+                            onChange={(e) => { setStatusFilter(e.target.value); setCurrentPage(1); }}
                             className="block w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm"
                         >
-                            <option value="all">All Status</option>
-                            <option value="true">Verified</option>
-                            <option value="false">Pending</option>
+                            {statusOptions.map(option => (
+                                <option key={option.value} value={option.value}>{option.label}</option>
+                            ))}
                         </select>
                     </div>
 
                     {/* Gender Filter */}
                     <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                            Gender
-                        </label>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Gender</label>
                         <select
                             value={genderFilter}
-                            onChange={(e) => {
-                                setGenderFilter(e.target.value);
-                                setCurrentPage(1);
-                            }}
+                            onChange={(e) => { setGenderFilter(e.target.value); setCurrentPage(1); }}
                             className="block w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm"
                         >
                             <option value="all">All Genders</option>
@@ -296,7 +281,7 @@ const ReportsList = () => {
                         </select>
                     </div>
 
-                    {/* Reset Button - Spans 2 columns on large screens */}
+                    {/* Reset */}
                     <div className="lg:col-span-6 flex justify-end">
                         <button
                             onClick={resetFilters}
@@ -310,8 +295,8 @@ const ReportsList = () => {
                     </div>
                 </div>
 
-                {/* Active Filters Display */}
-                {(searchTerm || verifiedFilter !== 'all' || genderFilter !== 'all' || diseaseFilter !== 'all') && (
+                {/* Active Filter Pills */}
+                {hasActiveFilters && (
                     <div className="mt-4 pt-4 border-t border-gray-200">
                         <div className="flex flex-wrap items-center gap-2">
                             <span className="text-sm font-medium text-gray-700">Active Filters:</span>
@@ -319,9 +304,7 @@ const ReportsList = () => {
                                 <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800">
                                     Search: {searchTerm}
                                     <button onClick={() => setSearchTerm('')} className="ml-2">
-                                        <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
-                                            <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
-                                        </svg>
+                                        <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" /></svg>
                                     </button>
                                 </span>
                             )}
@@ -329,19 +312,15 @@ const ReportsList = () => {
                                 <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
                                     Disease: {diseaseOptions.find(d => d.value === diseaseFilter)?.label.split(' - ')[0]}
                                     <button onClick={() => setDiseaseFilter('all')} className="ml-2">
-                                        <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
-                                            <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
-                                        </svg>
+                                        <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" /></svg>
                                     </button>
                                 </span>
                             )}
-                            {verifiedFilter !== 'all' && (
+                            {statusFilter !== 'all' && (
                                 <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                                    Status: {verifiedFilter === 'true' ? 'Verified' : 'Pending'}
-                                    <button onClick={() => setVerifiedFilter('all')} className="ml-2">
-                                        <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
-                                            <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
-                                        </svg>
+                                    Status: {statusFilter}
+                                    <button onClick={() => setStatusFilter('all')} className="ml-2">
+                                        <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" /></svg>
                                     </button>
                                 </span>
                             )}
@@ -349,9 +328,7 @@ const ReportsList = () => {
                                 <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
                                     Gender: {genderFilter}
                                     <button onClick={() => setGenderFilter('all')} className="ml-2">
-                                        <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
-                                            <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
-                                        </svg>
+                                        <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" /></svg>
                                     </button>
                                 </span>
                             )}
@@ -359,9 +336,9 @@ const ReportsList = () => {
                     </div>
                 )}
             </div>
-            
-            {/* Stats Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+
+            {/* ── Stats Cards — all from server, never from local array ── */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
                     <div className="flex items-center">
                         <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center mr-3">
@@ -385,9 +362,22 @@ const ReportsList = () => {
                         </div>
                         <div>
                             <p className="text-xs text-gray-600 font-medium">Verified</p>
-                            <p className="text-xl font-bold text-gray-900">
-                                {reports.filter(r => r.verified).length}
-                            </p>
+                            <p className="text-xl font-bold text-gray-900">{verifiedCount}</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+                    <div className="flex items-center">
+                        <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center mr-3">
+                            <svg className="w-5 h-5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                            </svg>
+                        </div>
+                        <div>
+                            <p className="text-xs text-gray-600 font-medium">Needs Review</p>
+                            <p className="text-xl font-bold text-gray-900">{needsReviewCount}</p>
                         </div>
                     </div>
                 </div>
@@ -401,86 +391,42 @@ const ReportsList = () => {
                         </div>
                         <div>
                             <p className="text-xs text-gray-600 font-medium">Pending</p>
-                            <p className="text-xl font-bold text-gray-900">
-                                {reports.filter(r => !r.verified).length}
-                            </p>
-                        </div>
-                    </div>
-                </div>
-
-                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
-                    <div className="flex items-center">
-                        <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center mr-3">
-                            <svg className="w-5 h-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
-                            </svg>
-                        </div>
-                        <div>
-                            <p className="text-xs text-gray-600 font-medium">Current Page</p>
-                            <p className="text-xl font-bold text-gray-900">{currentPage}/{totalPages}</p>
+                            <p className="text-xl font-bold text-gray-900">{pendingCount}</p>
                         </div>
                     </div>
                 </div>
             </div>
 
-            {/* Table */}
+            {/* ── Table ── */}
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
                 <div className="overflow-x-auto">
                     <table className="min-w-full divide-y divide-gray-200">
                         <thead className="bg-gray-50">
                             <tr>
-                                <th 
-                                    onClick={() => handleSort('patientId')}
-                                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors"
-                                >
-                                    <div className="flex items-center space-x-1">
-                                        <span>Patient ID</span>
-                                        {getSortIcon('patientId')}
-                                    </div>
+                                <th onClick={() => handleSort('patientId')} className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors">
+                                    <div className="flex items-center space-x-1"><span>Patient ID</span>{getSortIcon('patientId')}</div>
                                 </th>
-                                <th 
-                                    onClick={() => handleSort('age')}
-                                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors"
-                                >
-                                    <div className="flex items-center space-x-1">
-                                        <span>Age</span>
-                                        {getSortIcon('age')}
-                                    </div>
+                                <th onClick={() => handleSort('age')} className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors">
+                                    <div className="flex items-center space-x-1"><span>Age</span>{getSortIcon('age')}</div>
                                 </th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                    Gender
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Gender</th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Diseases</th>
+                                <th onClick={() => handleSort('createdAt')} className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors">
+                                    <div className="flex items-center space-x-1"><span>Created At</span>{getSortIcon('createdAt')}</div>
                                 </th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                    Diseases
-                                </th>
-                                <th 
-                                    onClick={() => handleSort('createdAt')}
-                                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors"
-                                >
-                                    <div className="flex items-center space-x-1">
-                                        <span>Created At</span>
-                                        {getSortIcon('createdAt')}
-                                    </div>
-                                </th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                    Status
-                                </th>
-                                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                    Actions
-                                </th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                             </tr>
                         </thead>
                         <tbody className="bg-white divide-y divide-gray-200">
                             {loading ? (
-                                Array.from({ length: itemsPerPage }).map((_, index) => (
-                                    <SkeletonRow key={index} />
-                                ))
+                                Array.from({ length: itemsPerPage }).map((_, i) => <SkeletonRow key={i} />)
                             ) : reports.length > 0 ? (
                                 reports.map((report) => {
                                     const diseases = getReportDiseases(report);
                                     return (
-                                        <tr 
-                                            key={report._id} 
+                                        <tr
+                                            key={report._id}
                                             className="hover:bg-gray-50 transition-colors cursor-pointer"
                                             onClick={() => viewReport(report._id)}
                                         >
@@ -491,11 +437,7 @@ const ReportsList = () => {
                                                             {report.patientId.substring(0, 2).toUpperCase()}
                                                         </span>
                                                     </div>
-                                                    <div className="ml-4">
-                                                        <div className="text-sm font-medium text-gray-900">
-                                                            {report.patientId}
-                                                        </div>
-                                                    </div>
+                                                    <div className="ml-4 text-sm font-medium text-gray-900">{report.patientId}</div>
                                                 </div>
                                             </td>
                                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
@@ -503,7 +445,7 @@ const ReportsList = () => {
                                             </td>
                                             <td className="px-6 py-4 whitespace-nowrap">
                                                 <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                                                    report.gender === 'Male' ? 'bg-blue-100 text-blue-800' :
+                                                    report.gender === 'Male'   ? 'bg-blue-100 text-blue-800' :
                                                     report.gender === 'Female' ? 'bg-pink-100 text-pink-800' :
                                                     'bg-gray-100 text-gray-800'
                                                 }`}>
@@ -512,16 +454,11 @@ const ReportsList = () => {
                                             </td>
                                             <td className="px-6 py-4">
                                                 <div className="flex flex-wrap gap-1">
-                                                    {diseases.length > 0 ? (
-                                                        diseases.map(disease => (
-                                                            <span
-                                                                key={disease}
-                                                                className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${getDiseaseBadgeColor(disease)}`}
-                                                            >
-                                                                {disease}
-                                                            </span>
-                                                        ))
-                                                    ) : (
+                                                    {diseases.length > 0 ? diseases.map(d => (
+                                                        <span key={d} className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${getDiseaseBadgeColor(d)}`}>
+                                                            {d}
+                                                        </span>
+                                                    )) : (
                                                         <span className="text-xs text-gray-400 italic">None</span>
                                                     )}
                                                 </div>
@@ -529,21 +466,24 @@ const ReportsList = () => {
                                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                                                 {formatDate(report.createdAt)}
                                             </td>
-                                            <td className="px-6 py-4 whitespace-nowrap">
-                                                <span className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                                                    report.verified 
-                                                        ? 'bg-green-100 text-green-800' 
-                                                        : 'bg-yellow-100 text-yellow-800'
-                                                }`}>
-                                                    {report.verified ? 'Verified' : 'Pending'}
-                                                </span>
+
+                                            {/* ── Status cell — stops row click, uses ReportStatusBadge ── */}
+                                            <td
+                                                className="px-6 py-4 whitespace-nowrap"
+                                                onClick={(e) => e.stopPropagation()}
+                                            >
+                                                <ReportStatusBadge
+                                                    reportId={report._id}
+                                                    status={report.status ?? 'Pending'}
+                                                    onStatusChange={(newStatus) =>
+                                                        handleStatusChange(report._id, newStatus)
+                                                    }
+                                                />
                                             </td>
+
                                             <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                                                 <button
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        viewReport(report._id);
-                                                    }}
+                                                    onClick={(e) => { e.stopPropagation(); viewReport(report._id); }}
                                                     className="text-indigo-600 hover:text-indigo-900 transition-colors"
                                                 >
                                                     View Details
@@ -560,15 +500,10 @@ const ReportsList = () => {
                                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                                             </svg>
                                             <p className="text-gray-500 text-sm">
-                                                {searchTerm || verifiedFilter !== 'all' || genderFilter !== 'all' || diseaseFilter !== 'all'
-                                                    ? 'No reports match your filters'
-                                                    : 'No reports found'}
+                                                {hasActiveFilters ? 'No reports match your filters' : 'No reports found'}
                                             </p>
-                                            {(searchTerm || verifiedFilter !== 'all' || genderFilter !== 'all' || diseaseFilter !== 'all') && (
-                                                <button
-                                                    onClick={resetFilters}
-                                                    className="mt-3 text-sm text-indigo-600 hover:text-indigo-800 font-medium"
-                                                >
+                                            {hasActiveFilters && (
+                                                <button onClick={resetFilters} className="mt-3 text-sm text-indigo-600 hover:text-indigo-800 font-medium">
                                                     Clear all filters
                                                 </button>
                                             )}
@@ -580,7 +515,7 @@ const ReportsList = () => {
                     </table>
                 </div>
 
-                {/* Pagination - Same as before */}
+                {/* ── Pagination ── */}
                 {!loading && totalPages > 0 && (
                     <div className="bg-white px-4 py-3 border-t border-gray-200 sm:px-6">
                         <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
@@ -588,10 +523,7 @@ const ReportsList = () => {
                                 <label className="text-sm text-gray-700">Show:</label>
                                 <select
                                     value={itemsPerPage}
-                                    onChange={(e) => {
-                                        setItemsPerPage(Number(e.target.value));
-                                        setCurrentPage(1);
-                                    }}
+                                    onChange={(e) => { setItemsPerPage(Number(e.target.value)); setCurrentPage(1); }}
                                     className="border border-gray-300 rounded-lg px-3 py-1 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                                 >
                                     <option value={5}>5</option>
@@ -604,40 +536,21 @@ const ReportsList = () => {
 
                             <div className="text-sm text-gray-700">
                                 Showing <span className="font-medium">{(currentPage - 1) * itemsPerPage + 1}</span> to{' '}
-                                <span className="font-medium">
-                                    {Math.min(currentPage * itemsPerPage, totalReports)}
-                                </span> of{' '}
+                                <span className="font-medium">{Math.min(currentPage * itemsPerPage, totalReports)}</span> of{' '}
                                 <span className="font-medium">{totalReports}</span> results
                             </div>
 
                             <div className="flex items-center space-x-2">
-                                <button
-                                    onClick={() => setCurrentPage(1)}
-                                    disabled={currentPage === 1}
-                                    className="px-3 py-1 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                                >
-                                    First
-                                </button>
-                                <button
-                                    onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
-                                    disabled={currentPage === 1}
-                                    className="px-3 py-1 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                                >
-                                    Previous
-                                </button>
-                                
+                                <button onClick={() => setCurrentPage(1)} disabled={currentPage === 1} className="px-3 py-1 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">First</button>
+                                <button onClick={() => setCurrentPage(p => Math.max(p - 1, 1))} disabled={currentPage === 1} className="px-3 py-1 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">Previous</button>
+
                                 <div className="hidden sm:flex items-center space-x-1">
                                     {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
                                         let pageNum;
-                                        if (totalPages <= 5) {
-                                            pageNum = i + 1;
-                                        } else if (currentPage <= 3) {
-                                            pageNum = i + 1;
-                                        } else if (currentPage >= totalPages - 2) {
-                                            pageNum = totalPages - 4 + i;
-                                        } else {
-                                            pageNum = currentPage - 2 + i;
-                                        }
+                                        if (totalPages <= 5)            pageNum = i + 1;
+                                        else if (currentPage <= 3)      pageNum = i + 1;
+                                        else if (currentPage >= totalPages - 2) pageNum = totalPages - 4 + i;
+                                        else                            pageNum = currentPage - 2 + i;
                                         return (
                                             <button
                                                 key={i}
@@ -654,20 +567,8 @@ const ReportsList = () => {
                                     })}
                                 </div>
 
-                                <button
-                                    onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
-                                    disabled={currentPage === totalPages}
-                                    className="px-3 py-1 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                                >
-                                    Next
-                                </button>
-                                <button
-                                    onClick={() => setCurrentPage(totalPages)}
-                                    disabled={currentPage === totalPages}
-                                    className="px-3 py-1 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                                >
-                                    Last
-                                </button>
+                                <button onClick={() => setCurrentPage(p => Math.min(p + 1, totalPages))} disabled={currentPage === totalPages} className="px-3 py-1 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">Next</button>
+                                <button onClick={() => setCurrentPage(totalPages)} disabled={currentPage === totalPages} className="px-3 py-1 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">Last</button>
                             </div>
                         </div>
                     </div>

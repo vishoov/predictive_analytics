@@ -1,46 +1,26 @@
 // src/utils/analytics.utils.jsx
 import api from '../utils/axios.utils.jsx';
 
-// Dashboard-related endpoints
+// ── Dashboard ─────────────────────────────────────────────────────────────────
 export const dashboardAPI = {
-    // GET http://localhost:3000/view/uro_reports/stats/dashboard
-    getStats: () => api.get('/view/uro_reports/stats/dashboard'),
-
-    // GET http://localhost:3000/view/uro_reports/recent?limit=4
-    getRecentTests: (limit = 4) =>
-        api.get(`/view/uro_reports/recent?limit=${limit}`),
-
-    // GET http://localhost:3000/view/uro_reports/stats/trends
-    getTrends: () => api.get('/view/uro_reports/stats/trends'),
-
-    // GET http://localhost:3000/view/uro_reports/stats/patients
-    getPatientStats: () => api.get('/view/uro_reports/stats/patients'),
+    getStats:       () => api.get('/view/uro_reports/stats/dashboard'),
+    getRecentTests: (limit = 4) => api.get(`/view/uro_reports/recent?limit=${limit}`),
+    getTrends:      () => api.get('/view/uro_reports/stats/trends'),
+    getPatientStats:() => api.get('/view/uro_reports/stats/patients'),
 };
 
-// Report-related endpoints
+// ── Reports ───────────────────────────────────────────────────────────────────
 export const reportsAPI = {
-    // GET http://localhost:3000/view/uro_reports?page=1&limit=10
-    getAll: (page = 1, limit = 10) =>
-        api.get(`/view/uro_reports?page=${page}&limit=${limit}`),
+    getAll:     (page = 1, limit = 10) => api.get(`/view/uro_reports?page=${page}&limit=${limit}`),
+    search:     (params) => api.get('/view/uro_reports/search', { params }),
+    getById:    (id) => api.get(`/view/uro_reports/${id}`),
+    getByPatient:(patientId) => api.get(`/view/uro_reports/patient/${patientId}`),
+    getCount:   () => api.get('/view/uro_reports/count'),
+    create:     (data) => api.post('/view/uro_reports', data),
+    update:     (id, data) => api.put(`/view/uro_reports/${id}`, data),
+    deleteAll:  () => api.delete('/view/uro_reports'),
+    fill:       (data) => api.post('/view/uro_reports/fill', data),
 
-    // GET http://localhost:3000/view/uro_reports/search (with filters)
-    search: (params) => 
-        api.get('/view/uro_reports/search', { params }),
-
-    // GET http://localhost:3000/view/uro_reports/:id
-    getById: (id) => api.get(`/view/uro_reports/${id}`),
-
-    // GET http://localhost:3000/view/uro_reports/patient/:patientId
-    getByPatient: (patientId) =>
-        api.get(`/view/uro_reports/patient/${patientId}`),
-
-    // GET http://localhost:3000/view/uro_reports/count
-    getCount: () => api.get('/view/uro_reports/count'),
-
-    // POST http://localhost:3000/view/uro_reports
-    create: (data) => api.post('/view/uro_reports', data),
-
-    // POST http://localhost:3000/view/uro_reports/upload (multipart/form-data)
     uploadCSV: (file) => {
         const formData = new FormData();
         formData.append('file', file);
@@ -49,28 +29,32 @@ export const reportsAPI = {
         });
     },
 
-    // DELETE http://localhost:3000/view/uro_reports
-    deleteAll: () => api.delete('/view/uro_reports'),
+    // ── Image routes ──────────────────────────────────────────────────────────
+    uploadImages: (reportId, files) => {
+        const formData = new FormData();
+        files.forEach(file => formData.append('images', file));
+        return api.post(`/reports/upload/${reportId}`, formData, {
+            headers: { 'Content-Type': 'multipart/form-data' },
+        });
+    },
 
-    // POST http://localhost:3000/view/uro_reports/fill
-    fill: (data) => api.post('/view/uro_reports/fill', data),
+    deleteImage: (reportId, publicId) =>
+        api.delete(`/reports/images/${reportId}/${encodeURIComponent(publicId)}`),
 
-    // PUT http://localhost:3000/view/uro_reports/:id - FIXED
-    update: (id, data) => api.put(`/view/uro_reports/${id}`, data),
+    // ── Status route ──────────────────────────────────────────────────────────
+    updateStatus: (reportId, status) =>
+        api.patch(`/reports/status/${reportId}`, { status }),
 };
 
-// Disease-related endpoints
+// ── Diseases ──────────────────────────────────────────────────────────────────
 export const diseaseAPI = {
-    getAll: () => api.get('/view/uro_reports/diseases/list'),
-    
-    getByDisease: (disease, page = 1, limit = 10) => 
+    getAll:            () => api.get('/view/uro_reports/diseases/list'),
+    getStatistics:     () => api.get('/view/uro_reports/diseases/statistics'),
+
+    getByDisease: (disease, page = 1, limit = 10) =>
         api.get(`/view/uro_reports/diseases/${encodeURIComponent(disease)}?page=${page}&limit=${limit}`),
-    
-    // GET http://localhost:3000/view/uro_reports/diseases/statistics
-    getStatistics: () => api.get('/view/uro_reports/diseases/statistics'),
-    
-    // GET http://localhost:3000/view/uro_reports/diseases/patients/:diseaseCode
-    getPatientsByDisease: (diseaseCode, page = 1, limit = 10) => 
+
+    getPatientsByDisease: (diseaseCode, page = 1, limit = 10) =>
         api.get(`/view/uro_reports/diseases/patients/${diseaseCode}?page=${page}&limit=${limit}`),
 };
 

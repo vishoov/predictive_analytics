@@ -13,6 +13,8 @@ import ReportDetail from './components/reports/ReportDetails.jsx'
 import ReviewReport from './components/reviews/ReviewReport.jsx'
 import Users from './components/users/Users.jsx'
 import Settings from './pages/Settings.jsx'
+import NewReport from './components/reports/NewReport.jsx'
+import GraphUpload from './components/upload/GraphUpload.jsx'
 const App = () => {
   return (
     <BrowserRouter>
@@ -34,10 +36,13 @@ const App = () => {
           <Route path="diagnostics" element={<DiseaseStatistics />} />
           <Route path="reports" element={<ReportsList />} />
           <Route path="reports/:reportId" element={<ReportDetail />} />
+          {/* <Route path="reports/new" element={<RestrictedFeature />} /> */}
+          <Route path="reports/new" element={<NewReport />} />
+
           <Route path="reviews" element={<ReviewsList />} />
           {/* <Route path="users" element={<Users />} /> */}
           <Route path="settings" element={<Settings />} />
-
+          {/* <Route path="image-upload" element={<GraphUpload />} /> */}
 
           <Route path="/admin-dashboard/reports/:reportId/review" element={<ReviewReport />} />
           {/* <Route path="*" element={<Navigate to="/admin-dashboard" replace />} /> */}

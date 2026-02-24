@@ -1,19 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { reportsAPI } from '../../utils/analytics.utils';
-import ReportGraphViewer from './ReportGraphViewer';
-import ReportStatusBadge from '../reviews/ReportStatusBadge.jsx';
 
-const ReportDetail = () => {
+const NewReport = () => {
     const { reportId } = useParams();
     const navigate = useNavigate();
-
+    
     const [report, setReport] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
-    const [activeTab, setActiveTab] = useState('diagnosis');
+    const [activeTab, setActiveTab] = useState('patient');
 
-    // ── Fetch report ──────────────────────────────────────────────────────────
+    // Fetch report details
     useEffect(() => {
         let isMounted = true;
 
@@ -23,7 +21,7 @@ const ReportDetail = () => {
                 setError(null);
 
                 const response = await reportsAPI.getById(reportId);
-
+                
                 if (isMounted) {
                     setReport(response.data);
                 }
@@ -33,20 +31,20 @@ const ReportDetail = () => {
                     setError(err.response?.data?.message || 'Failed to load report');
                 }
             } finally {
-                if (isMounted) setLoading(false);
+                if (isMounted) {
+                    setLoading(false);
+                }
             }
         };
 
         fetchReport();
-        return () => { isMounted = false; };
+
+        return () => {
+            isMounted = false;
+        };
     }, [reportId]);
 
-    // ── Status change from ReportStatusBadge ─────────────────────────────────
-    const handleStatusChange = (newStatus) => {
-        setReport(prev => ({ ...prev, status: newStatus }));
-    };
-
-    // ── Helpers ───────────────────────────────────────────────────────────────
+    // Format date
     const formatDate = (date) => {
         if (!date) return 'N/A';
         return new Date(date).toLocaleDateString('en-US', {
@@ -58,6 +56,7 @@ const ReportDetail = () => {
         });
     };
 
+    // Format value display
     const formatValue = (value) => {
         if (value === null || value === undefined || value === '') return 'N/A';
         if (value === '-') return 'Not specified';
@@ -66,29 +65,43 @@ const ReportDetail = () => {
         return value;
     };
 
+    // Get disease badges
     const getDiseases = (reportData) => {
         if (!reportData) return [];
         const diseases = [];
-        if (reportData.detrusorExternalSphincterDyssynergiaDESD) diseases.push({ code: 'DESD', name: 'Detrusor External Sphincter Dyssynergia', color: 'bg-blue-100 text-blue-800 border-blue-200' });
-        if (reportData.detrusorUnderactivityDUA) diseases.push({ code: 'DUA', name: 'Detrusor Underactivity', color: 'bg-purple-100 text-purple-800 border-purple-200' });
-        if (reportData.detrusorOveractivityDOA) diseases.push({ code: 'DOA', name: 'Detrusor Overactivity', color: 'bg-green-100 text-green-800 border-green-200' });
-        if (reportData.bladderOutletObstructionBOO) diseases.push({ code: 'BOO', name: 'Bladder Outlet Obstruction', color: 'bg-orange-100 text-orange-800 border-orange-200' });
+        if (reportData.detrusorExternalSphincterDyssynergiaDESD) {
+            diseases.push({ 
+                code: 'DESD', 
+                name: 'Detrusor External Sphincter Dyssynergia', 
+                color: 'bg-blue-100 text-blue-800 border-blue-200' 
+            });
+        }
+        if (reportData.detrusorUnderactivityDUA) {
+            diseases.push({ 
+                code: 'DUA', 
+                name: 'Detrusor Underactivity', 
+                color: 'bg-purple-100 text-purple-800 border-purple-200' 
+            });
+        }
+        if (reportData.detrusorOveractivityDOA) {
+            diseases.push({ 
+                code: 'DOA', 
+                name: 'Detrusor Overactivity', 
+                color: 'bg-green-100 text-green-800 border-green-200' 
+            });
+        }
+        if (reportData.bladderOutletObstructionBOO) {
+            diseases.push({ 
+                code: 'BOO', 
+                name: 'Bladder Outlet Obstruction', 
+                color: 'bg-orange-100 text-orange-800 border-orange-200' 
+            });
+        }
         return diseases;
     };
 
+    // Define data sections
     const getDataSections = (reportData) => ({
-        diagnosis: {
-            title: 'Diagnostic Findings',
-            icon: '🏥',
-            color: 'text-red-600',
-            fields: [
-                { label: 'Detrusor Underactivity (DUA)', value: reportData?.detrusorUnderactivityDUA ? 'Positive' : 'Negative', highlight: reportData?.detrusorUnderactivityDUA, badge: reportData?.detrusorUnderactivityDUA ? 'bg-purple-100 text-purple-800' : 'bg-gray-100 text-gray-600' },
-                { label: 'Bladder Outlet Obstruction (BOO)', value: reportData?.bladderOutletObstructionBOO ? 'Positive' : 'Negative', highlight: reportData?.bladderOutletObstructionBOO, badge: reportData?.bladderOutletObstructionBOO ? 'bg-orange-100 text-orange-800' : 'bg-gray-100 text-gray-600' },
-                { label: 'Detrusor Overactivity (DOA)', value: reportData?.detrusorOveractivityDOA ? 'Positive' : 'Negative', highlight: reportData?.detrusorOveractivityDOA, badge: reportData?.detrusorOveractivityDOA ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600' },
-                { label: 'Detrusor-External Sphincter Dyssynergia (DESD)', value: reportData?.detrusorExternalSphincterDyssynergiaDESD ? 'Positive' : 'Negative', highlight: reportData?.detrusorExternalSphincterDyssynergiaDESD, badge: reportData?.detrusorExternalSphincterDyssynergiaDESD ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-600' },
-                { label: 'Diagnostic Comments', value: reportData?.diagnosticComments, fullWidth: true, multiline: true, info: 'Detailed clinical interpretation' },
-            ]
-        },
         patient: {
             title: 'Patient Demographics & History',
             icon: '👤',
@@ -170,6 +183,18 @@ const ReportDetail = () => {
                 { label: 'General EMG Activity', value: reportData?.emgActivity, fullWidth: true, info: 'Overall electromyography findings' },
             ]
         },
+        diagnosis: {
+            title: 'Diagnostic Findings',
+            icon: '🏥',
+            color: 'text-red-600',
+            fields: [
+                { label: 'Detrusor Underactivity (DUA)', value: reportData?.detrusorUnderactivityDUA ? 'Positive' : 'Negative', highlight: reportData?.detrusorUnderactivityDUA, badge: reportData?.detrusorUnderactivityDUA ? 'bg-purple-100 text-purple-800' : 'bg-gray-100 text-gray-600' },
+                { label: 'Bladder Outlet Obstruction (BOO)', value: reportData?.bladderOutletObstructionBOO ? 'Positive' : 'Negative', highlight: reportData?.bladderOutletObstructionBOO, badge: reportData?.bladderOutletObstructionBOO ? 'bg-orange-100 text-orange-800' : 'bg-gray-100 text-gray-600' },
+                { label: 'Detrusor Overactivity (DOA)', value: reportData?.detrusorOveractivityDOA ? 'Positive' : 'Negative', highlight: reportData?.detrusorOveractivityDOA, badge: reportData?.detrusorOveractivityDOA ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600' },
+                { label: 'Detrusor-External Sphincter Dyssynergia (DESD)', value: reportData?.detrusorExternalSphincterDyssynergiaDESD ? 'Positive' : 'Negative', highlight: reportData?.detrusorExternalSphincterDyssynergiaDESD, badge: reportData?.detrusorExternalSphincterDyssynergiaDESD ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-600' },
+                { label: 'Diagnostic Comments', value: reportData?.diagnosticComments, fullWidth: true, multiline: true, info: 'Detailed clinical interpretation' },
+            ]
+        },
         clinical: {
             title: 'Clinical Team & Documentation',
             icon: '👨‍⚕️',
@@ -178,7 +203,7 @@ const ReportDetail = () => {
                 { label: 'Treating Physician', value: reportData?.treatingPhysician, icon: '👨‍⚕️' },
                 { label: 'Urodynamics Technician', value: reportData?.urodynamicsTechnician, icon: '👩‍🔬' },
                 { label: 'Reviewed By', value: reportData?.reviewedBy, icon: '✓' },
-                // ── status now shown via ReportStatusBadge in the header, not here as a static field
+                { label: 'Verification Status', value: reportData?.verified ? 'Verified' : 'Pending Review', badge: reportData?.verified ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800' },
                 { label: 'Verified At', value: formatDate(reportData?.verifiedAt) },
                 { label: 'Report Created', value: formatDate(reportData?.createdAt) },
                 { label: 'Last Updated', value: formatDate(reportData?.updatedAt) },
@@ -187,18 +212,18 @@ const ReportDetail = () => {
         }
     });
 
-    // ── Loading ───────────────────────────────────────────────────────────────
+    // Loading skeleton
     if (loading) {
         return (
             <div className="min-h-screen bg-gray-50 p-6">
                 <div className="max-w-7xl mx-auto">
                     <div className="animate-pulse space-y-6">
-                        <div className="h-8 bg-gray-200 rounded w-48" />
+                        <div className="h-8 bg-gray-200 rounded w-48"></div>
                         <div className="bg-white rounded-xl p-6 space-y-4">
-                            <div className="h-6 bg-gray-200 rounded w-64" />
-                            <div className="h-4 bg-gray-200 rounded w-full" />
-                            <div className="h-4 bg-gray-200 rounded w-full" />
-                            <div className="h-4 bg-gray-200 rounded w-3/4" />
+                            <div className="h-6 bg-gray-200 rounded w-64"></div>
+                            <div className="h-4 bg-gray-200 rounded w-full"></div>
+                            <div className="h-4 bg-gray-200 rounded w-full"></div>
+                            <div className="h-4 bg-gray-200 rounded w-3/4"></div>
                         </div>
                     </div>
                 </div>
@@ -206,7 +231,7 @@ const ReportDetail = () => {
         );
     }
 
-    // ── Error ─────────────────────────────────────────────────────────────────
+    // Error state
     if (error) {
         return (
             <div className="min-h-screen bg-gray-50 p-6">
@@ -214,7 +239,7 @@ const ReportDetail = () => {
                     <div className="bg-red-50 border-l-4 border-red-500 p-6 rounded-lg">
                         <div className="flex items-center mb-4">
                             <svg className="w-6 h-6 text-red-500 mr-3" fill="currentColor" viewBox="0 0 20 20">
-                                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd"/>
                             </svg>
                             <h3 className="text-lg font-semibold text-red-800">Error Loading Report</h3>
                         </div>
@@ -250,13 +275,11 @@ const ReportDetail = () => {
     const diseases = getDiseases(report);
     const dataSections = getDataSections(report);
 
-    // ── Render ────────────────────────────────────────────────────────────────
     return (
         <div className="min-h-screen bg-gray-50 p-4 md:p-6">
             <div className="max-w-7xl mx-auto space-y-6">
-
-                {/* ── Header Navigation ── */}
-                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                {/* Header Navigation */}
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 print:hidden">
                     <button
                         onClick={() => navigate('/admin-dashboard/reports')}
                         className="flex items-center text-gray-600 hover:text-gray-900 transition-colors group"
@@ -267,7 +290,7 @@ const ReportDetail = () => {
                         <span className="font-medium">Back to Reports</span>
                     </button>
 
-                    <div className="flex items-center gap-3 flex-wrap">
+                    <div className="flex items-center space-x-3">
                         <button
                             onClick={() => navigate(`/admin-dashboard/reports/${reportId}/review`)}
                             className="flex items-center px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors text-sm font-medium shadow-md hover:shadow-lg"
@@ -277,28 +300,28 @@ const ReportDetail = () => {
                             </svg>
                             Review Report
                         </button>
-
-                        {/* ── Live status badge — replaces the old static verified badge ── */}
-                        <ReportStatusBadge
-                            reportId={reportId}
-                            status={report.status ?? 'Pending'}
-                            onStatusChange={handleStatusChange}
-                        />
+                        <span className={`px-4 py-2 rounded-lg text-sm font-semibold shadow-sm ${
+                            report.verified 
+                                ? 'bg-green-100 text-green-800 border border-green-200' 
+                                : 'bg-yellow-100 text-yellow-800 border border-yellow-200'
+                        }`}>
+                            {report.verified ? '✓ Verified' : '⏳ Pending Review'}
+                        </span>
                     </div>
                 </div>
 
-                {/* ── Patient Header Card ── */}
+                {/* Patient Header Card */}
                 <div className="bg-gradient-to-br from-indigo-600 via-purple-600 to-indigo-700 rounded-2xl shadow-2xl p-6 md:p-8 text-white">
                     <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
                         <div className="flex-1 w-full">
                             <div className="flex items-center space-x-4 mb-6">
                                 <div className="w-20 h-20 bg-white bg-opacity-20 backdrop-blur-sm rounded-2xl flex items-center justify-center shadow-lg">
-                                    <span className="text-3xl font-bold text-indigo-500">
-                                        {report.patientId.substring(0, 2).toUpperCase()}
+                                    <span className="text-3xl font-bold text-white">
+                                        {report.patientId ? report.patientId.substring(0, 2).toUpperCase() : 'NA'}
                                     </span>
                                 </div>
                                 <div>
-                                    <h1 className="text-3xl md:text-4xl font-bold mb-1">Patient {report.patientId}</h1>
+                                    <h1 className="text-3xl md:text-4xl font-bold mb-1">Patient {report.patientId || 'N/A'}</h1>
                                     <p className="text-indigo-100 text-sm md:text-base flex items-center">
                                         <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
@@ -310,23 +333,23 @@ const ReportDetail = () => {
 
                             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                                 <div className="bg-white bg-opacity-10 backdrop-blur-sm rounded-xl p-4 border border-white border-opacity-20">
-                                    <p className="text-indigo-900 text-xs font-medium uppercase tracking-wider mb-1">Age</p>
-                                    <p className="text-black text-2xl font-bold">{report.age || 'N/A'}</p>
+                                    <p className="text-indigo-100 text-xs font-medium uppercase tracking-wider mb-1">Age</p>
+                                    <p className="text-white text-2xl font-bold">{report.age || 'N/A'}</p>
                                 </div>
                                 <div className="bg-white bg-opacity-10 backdrop-blur-sm rounded-xl p-4 border border-white border-opacity-20">
-                                    <p className="text-indigo-900 text-xs font-medium uppercase tracking-wider mb-1">Gender</p>
-                                    <p className="text-black text-2xl font-bold">{report.gender || 'N/A'}</p>
+                                    <p className="text-indigo-100 text-xs font-medium uppercase tracking-wider mb-1">Gender</p>
+                                    <p className="text-white text-2xl font-bold">{report.gender || 'N/A'}</p>
                                 </div>
                                 <div className="bg-white bg-opacity-10 backdrop-blur-sm rounded-xl p-4 border border-white border-opacity-20">
-                                    <p className="text-indigo-900 text-xs font-medium uppercase tracking-wider mb-1">Study Date</p>
-                                    <p className="text-gray-900 text-sm font-semibold">
+                                    <p className="text-indigo-100 text-xs font-medium uppercase tracking-wider mb-1">Study Date</p>
+                                    <p className="text-white text-sm font-semibold">
                                         {report.dateOfStudy ? new Date(report.dateOfStudy).toLocaleDateString() : 'N/A'}
                                     </p>
                                 </div>
                                 <div className="bg-white bg-opacity-10 backdrop-blur-sm rounded-xl p-4 border border-white border-opacity-20">
-                                    <p className="text-indigo-900 text-xs font-medium uppercase tracking-wider mb-1">Created</p>
-                                    <p className="text-gray-900 text-sm font-semibold">
-                                        {new Date(report.createdAt).toLocaleDateString()}
+                                    <p className="text-indigo-100 text-xs font-medium uppercase tracking-wider mb-1">Created</p>
+                                    <p className="text-white text-sm font-semibold">
+                                        {report.createdAt ? new Date(report.createdAt).toLocaleDateString() : 'N/A'}
                                     </p>
                                 </div>
                             </div>
@@ -334,7 +357,7 @@ const ReportDetail = () => {
                     </div>
 
                     {/* Diagnosed Conditions */}
-                    {diseases.length > 0 ? (
+                    {diseases.length > 0 && (
                         <div className="mt-6 pt-6 border-t border-white border-opacity-20">
                             <p className="text-indigo-100 text-sm font-semibold mb-3 flex items-center">
                                 <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -357,7 +380,9 @@ const ReportDetail = () => {
                                 ))}
                             </div>
                         </div>
-                    ) : (
+                    )}
+
+                    {diseases.length === 0 && (
                         <div className="mt-6 pt-6 border-t border-white border-opacity-20">
                             <p className="text-indigo-100 text-sm flex items-center">
                                 <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -369,12 +394,9 @@ const ReportDetail = () => {
                     )}
                 </div>
 
-                {/* ── Graph Viewer ── */}
-                <ReportGraphViewer images={report.images || []} />
-
-                {/* ── Tabs Navigation ── */}
+                {/* Tabs Navigation */}
                 <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-                    <div className="border-b border-gray-200 overflow-x-auto scrollbar-hide">
+                    <div className="border-b border-gray-200 overflow-x-auto print:hidden">
                         <nav className="flex space-x-1 p-2 min-w-max">
                             {Object.keys(dataSections).map((key) => (
                                 <button
@@ -408,9 +430,11 @@ const ReportDetail = () => {
                                 const isNA = displayValue === 'N/A' || displayValue === 'Not specified';
 
                                 return (
-                                    <div
+                                    <div 
                                         key={index}
-                                        className={`${field.fullWidth ? 'md:col-span-2 lg:col-span-3' : ''} ${
+                                        className={`${
+                                            field.fullWidth ? 'md:col-span-2 lg:col-span-3' : ''
+                                        } ${
                                             field.highlight && !isNA ? 'ring-2 ring-indigo-200' : ''
                                         }`}
                                     >
@@ -435,7 +459,7 @@ const ReportDetail = () => {
                                                     </div>
                                                 )}
                                             </div>
-
+                                            
                                             {field.badge ? (
                                                 <span className={`inline-block px-3 py-1 rounded-full text-sm font-bold ${field.badge}`}>
                                                     {displayValue}
@@ -445,7 +469,7 @@ const ReportDetail = () => {
                                                     href={displayValue}
                                                     target="_blank"
                                                     rel="noopener noreferrer"
-                                                    className="text-indigo-600 hover:text-indigo-800 font-semibold underline break-all text-sm flex items-center"
+                                                    className="text-indigo-600 hover:text-indigo-800 font-semibold underline break-all text-sm flex items-center print:text-indigo-600"
                                                 >
                                                     <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
@@ -457,7 +481,9 @@ const ReportDetail = () => {
                                                     field.multiline ? 'text-base' : 'text-xl'
                                                 } font-bold ${
                                                     isNA ? 'text-gray-400 italic' : 'text-gray-900'
-                                                } ${field.multiline ? 'whitespace-pre-wrap' : ''}`}>
+                                                } ${
+                                                    field.multiline ? 'whitespace-pre-wrap' : ''
+                                                }`}>
                                                     {displayValue}
                                                     {field.unit && !isNA && (
                                                         <span className="text-sm text-gray-500 font-normal ml-2">
@@ -474,8 +500,8 @@ const ReportDetail = () => {
                     </div>
                 </div>
 
-                {/* ── Action Buttons ── */}
-                <div className="flex flex-col sm:flex-row gap-3 pb-6">
+                {/* Action Buttons */}
+                <div className="flex flex-col sm:flex-row gap-3 pb-6 print:hidden">
                     <button
                         onClick={() => navigate('/admin-dashboard/reports')}
                         className="flex-1 px-6 py-3 bg-white border-2 border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 hover:border-gray-400 transition-all font-medium shadow-sm flex items-center justify-center"
@@ -495,18 +521,22 @@ const ReportDetail = () => {
                         Print Report
                     </button>
                 </div>
-
             </div>
 
             {/* Print Styles */}
             <style>{`
                 @media print {
-                    body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
-                    nav { display: none !important; }
+                    body { 
+                        print-color-adjust: exact; 
+                        -webkit-print-color-adjust: exact; 
+                    }
+                    .print\\:hidden {
+                        display: none !important;
+                    }
                 }
             `}</style>
         </div>
     );
 };
 
-export default ReportDetail;
+export default NewReport;

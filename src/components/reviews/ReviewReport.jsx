@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { reportsAPI } from '../../utils/analytics.utils';
+import ReportGraphUpload from './ReportGraphUpload.jsx';
+import ReportStatusBadge from './ReportStatusBadge.jsx';
 
 const ReviewReport = () => {
     const { reportId } = useParams();
     const navigate = useNavigate();
-    
+
     const [originalReport, setOriginalReport] = useState(null);
     const [formData, setFormData] = useState(null);
     const [loading, setLoading] = useState(true);
@@ -14,7 +16,7 @@ const ReviewReport = () => {
     const [hasChanges, setHasChanges] = useState(false);
     const [validationErrors, setValidationErrors] = useState({});
 
-    // Get current user from localStorage
+    // ── Current user ──────────────────────────────────────────────────────────
     const getCurrentUser = () => {
         const user = localStorage.getItem('user');
         if (user) {
@@ -25,17 +27,10 @@ const ReviewReport = () => {
                 console.error('Error parsing user:', e);
             }
         }
-        
-        const username = localStorage.getItem('username');
-        if (username) return username;
-        
-        const name = localStorage.getItem('name');
-        if (name) return name;
-        
-        return '';
+        return localStorage.getItem('username') || localStorage.getItem('name') || '';
     };
 
-    // Fetch report details
+    // ── Fetch report ──────────────────────────────────────────────────────────
     useEffect(() => {
         let isMounted = true;
 
@@ -45,15 +40,14 @@ const ReviewReport = () => {
                 setError(null);
 
                 const response = await reportsAPI.getById(reportId);
-                
+
                 if (isMounted) {
                     const reportData = response.data;
-                    
-                    // Auto-populate "Reviewed By" with current user if empty
+
                     if (!reportData.reviewedBy || reportData.reviewedBy === '' || reportData.reviewedBy === '-') {
                         reportData.reviewedBy = getCurrentUser();
                     }
-                    
+
                     setOriginalReport(reportData);
                     setFormData(reportData);
                 }
@@ -63,48 +57,59 @@ const ReviewReport = () => {
                     setError(err.response?.data?.message || 'Failed to load report');
                 }
             } finally {
-                if (isMounted) {
-                    setLoading(false);
-                }
+                if (isMounted) setLoading(false);
             }
         };
 
         fetchReport();
-
-        return () => {
-            isMounted = false;
-        };
+        return () => { isMounted = false; };
     }, [reportId]);
 
-    // Check for changes
+    // ── Detect unsaved changes ─────────────────────────────────────────────────
+    // images, status, verifiedAt are managed by their own routes — exclude from diff
     useEffect(() => {
         if (originalReport && formData) {
-            const changed = JSON.stringify(originalReport) !== JSON.stringify(formData);
+            const strip = ({ images, status, verifiedAt, ...rest }) => rest;
+            const changed = JSON.stringify(strip(originalReport)) !== JSON.stringify(strip(formData));
             setHasChanges(changed);
         }
     }, [formData, originalReport]);
 
-    // Handle input change
+    // ── Input handler ─────────────────────────────────────────────────────────
     const handleInputChange = (field, value) => {
-        setFormData(prev => ({
-            ...prev,
-            [field]: value
-        }));
-        
+        setFormData(prev => ({ ...prev, [field]: value }));
         if (validationErrors[field]) {
             setValidationErrors(prev => {
-                const newErrors = { ...prev };
-                delete newErrors[field];
-                return newErrors;
+                const next = { ...prev };
+                delete next[field];
+                return next;
             });
         }
     };
 
-    // Validate form
+    // ── Image + status sync ───────────────────────────────────────────────────
+    // Called by ReportGraphUpload after upload or delete
+    const handleImagesUpdate = (updatedImages, newStatus) => {
+        const patch = {
+            images: updatedImages,
+            ...(newStatus ? { status: newStatus } : {}),
+        };
+        // Sync both so change detection stays clean
+        setFormData(prev => ({ ...prev, ...patch }));
+        setOriginalReport(prev => ({ ...prev, ...patch }));
+    };
+
+    // ── Status change sync ────────────────────────────────────────────────────
+    // Called by ReportStatusBadge after a successful PATCH
+    const handleStatusChange = (newStatus) => {
+        setFormData(prev => ({ ...prev, status: newStatus }));
+        setOriginalReport(prev => ({ ...prev, status: newStatus }));
+    };
+
+    // ── Validation ────────────────────────────────────────────────────────────
     const validateForm = () => {
         const errors = {};
 
-        // IPSS Score validation
         if (formData.ipssScore !== null && formData.ipssScore !== undefined && formData.ipssScore !== '') {
             const score = Number(formData.ipssScore);
             if (isNaN(score) || score < 0 || score > 35) {
@@ -112,34 +117,11 @@ const ReviewReport = () => {
             }
         }
 
-        // Numeric field validations
-        const numericFields = [
-            'firstSensationVolume', 'firstDesireVolume', 'normalDesireVolume', 
-            'strongDesireVolume', 'urgencyVolume', 'maximumCystometricCapacity',
-            'voidedVolume', 'postVoidResidualVolume', 'infusedVolume',
-            'maximumFlowRateQmax', 'averageVoidingFlowRateQura', 'timeToQmax', 'voidingTime',
-            'detrusorPressureAtMCC', 'detrusorPressureAtQmax', 'bladderCompliance',
-            'pvesMax', 'pabdMax', 'pdetMax',
-            'firstSensationPves', 'firstSensationPdet', 'firstDesirePves', 'firstDesirePdet',
-            'normalDesirePves', 'normalDesirePdet', 'strongDesirePves', 'strongDesirePdet',
-            'urgencyPves', 'urgencyPdet', 'voidingVesicalPressure', 'voidingAbdominalPressure',
-            'voidingDetrusorPressure', 'bladderContractilityIndex', 'bladderOutletObstructionIndex'
-        ];
-
-        numericFields.forEach(field => {
-            if (formData[field] !== null && formData[field] !== undefined && formData[field] !== '') {
-                const value = Number(formData[field]);
-                if (isNaN(value) || value < 0) {
-                    errors[field] = 'Must be a positive number';
-                }
-            }
-        });
-
         setValidationErrors(errors);
         return Object.keys(errors).length === 0;
     };
 
-    // Reset to original
+    // ── Reset ─────────────────────────────────────────────────────────────────
     const handleReset = () => {
         if (window.confirm('Are you sure you want to reset all changes?')) {
             setFormData(originalReport);
@@ -148,7 +130,7 @@ const ReviewReport = () => {
         }
     };
 
-    // Save changes
+    // ── Save ──────────────────────────────────────────────────────────────────
     const handleSave = async () => {
         if (!validateForm()) {
             alert('Please fix validation errors before saving');
@@ -157,11 +139,12 @@ const ReviewReport = () => {
 
         try {
             setSaving(true);
-            
+
             const cleanedData = { ...formData };
+
             const numericFields = [
                 'age', 'ipssScore',
-                'firstSensationVolume', 'firstDesireVolume', 'normalDesireVolume', 
+                'firstSensationVolume', 'firstDesireVolume', 'normalDesireVolume',
                 'strongDesireVolume', 'urgencyVolume', 'maximumCystometricCapacity',
                 'voidedVolume', 'postVoidResidualVolume', 'infusedVolume',
                 'maximumFlowRateQmax', 'averageVoidingFlowRateQura', 'timeToQmax', 'voidingTime',
@@ -174,19 +157,22 @@ const ReviewReport = () => {
             ];
 
             numericFields.forEach(field => {
-                if (cleanedData[field] === '' || cleanedData[field] === null || cleanedData[field] === undefined) {
-                    cleanedData[field] = null;
-                } else {
-                    cleanedData[field] = Number(cleanedData[field]);
-                }
+                cleanedData[field] =
+                    cleanedData[field] === '' || cleanedData[field] == null
+                        ? null
+                        : Number(cleanedData[field]);
             });
 
-            // Set verifiedAt timestamp if marking as verified
-            if (cleanedData.verified && !originalReport.verified) {
-                cleanedData.verifiedAt = new Date().toISOString();
-            }
+            // These have their own dedicated routes — never send in PUT body
+            delete cleanedData.status;
+            delete cleanedData.verifiedAt;
+            delete cleanedData.images;
 
             await reportsAPI.update(reportId, cleanedData);
+
+            // Sync original so hasChanges resets to false
+            setOriginalReport(prev => ({ ...prev, ...cleanedData }));
+
             alert('Report updated successfully!');
             navigate(`/admin-dashboard/reports/${reportId}`);
         } catch (err) {
@@ -197,17 +183,18 @@ const ReviewReport = () => {
         }
     };
 
-    // Loading state
+    // ── Loading ───────────────────────────────────────────────────────────────
     if (loading) {
         return (
             <div className="min-h-screen bg-gray-50 p-6">
                 <div className="max-w-7xl mx-auto">
                     <div className="animate-pulse space-y-6">
-                        <div className="h-8 bg-gray-200 rounded w-48"></div>
+                        <div className="h-8 bg-gray-200 rounded w-48" />
                         <div className="bg-white rounded-xl p-6 space-y-4">
-                            <div className="h-6 bg-gray-200 rounded w-64"></div>
-                            <div className="h-4 bg-gray-200 rounded w-full"></div>
-                            <div className="h-4 bg-gray-200 rounded w-full"></div>
+                            <div className="h-6 bg-gray-200 rounded w-64" />
+                            <div className="h-4 bg-gray-200 rounded w-full" />
+                            <div className="h-4 bg-gray-200 rounded w-full" />
+                            <div className="h-4 bg-gray-200 rounded w-3/4" />
                         </div>
                     </div>
                 </div>
@@ -222,7 +209,7 @@ const ReviewReport = () => {
                     <div className="bg-red-50 border-l-4 border-red-500 p-6 rounded-lg">
                         <div className="flex items-center mb-4">
                             <svg className="w-6 h-6 text-red-500 mr-3" fill="currentColor" viewBox="0 0 20 20">
-                                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd"/>
+                                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
                             </svg>
                             <h3 className="text-lg font-semibold text-red-800">Error Loading Report</h3>
                         </div>
@@ -239,7 +226,7 @@ const ReviewReport = () => {
         );
     }
 
-    // Input field component
+    // ── Field components (after formData is guaranteed non-null) ──────────────
     const InputField = ({ label, field, type = 'text', unit, min, max, info, disabled = false }) => {
         const getDisplayValue = () => {
             const value = formData[field];
@@ -262,18 +249,13 @@ const ReviewReport = () => {
                 <input
                     type={type}
                     value={getDisplayValue()}
-                    onChange={(e) => {
-                        const inputValue = e.target.value;
-                        handleInputChange(field, inputValue);
-                    }}
+                    onChange={(e) => handleInputChange(field, e.target.value)}
                     min={min}
                     max={max}
                     disabled={disabled}
                     className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 ${
                         disabled ? 'bg-gray-100 cursor-not-allowed' : ''
-                    } ${
-                        validationErrors[field] ? 'border-red-500' : 'border-gray-300'
-                    }`}
+                    } ${validationErrors[field] ? 'border-red-500' : 'border-gray-300'}`}
                 />
                 {validationErrors[field] && (
                     <p className="mt-1 text-xs text-red-600">{validationErrors[field]}</p>
@@ -282,7 +264,6 @@ const ReviewReport = () => {
         );
     };
 
-    // Textarea component
     const TextareaField = ({ label, field, info, disabled = false }) => {
         const getDisplayValue = () => {
             const value = formData[field];
@@ -315,7 +296,6 @@ const ReviewReport = () => {
         );
     };
 
-    // Checkbox component
     const CheckboxField = ({ label, field, info }) => (
         <div className="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg">
             <input
@@ -337,26 +317,36 @@ const ReviewReport = () => {
         </div>
     );
 
+    // ── Render ────────────────────────────────────────────────────────────────
     return (
         <div className="min-h-screen bg-gray-50 p-4 md:p-6">
             <div className="max-w-7xl mx-auto space-y-6">
-                {/* Header */}
+
+                {/* ── Header ── */}
                 <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                    <div className="flex items-center justify-between mb-4">
-                        <div>
+                    <div className="flex items-start justify-between mb-4">
+                        <div className="space-y-2">
                             <h1 className="text-2xl font-bold text-gray-900">Review & Edit Report</h1>
-                            <p className="text-sm text-gray-600 mt-1">
-                                Patient ID: <span className="font-semibold">{formData.patientId}</span>
+                            <div className="flex items-center gap-3 flex-wrap">
+                                <p className="text-sm text-gray-600">
+                                    Patient ID: <span className="font-semibold">{formData.patientId}</span>
+                                </p>
+                                {/* Status badge — saves instantly via PATCH, independent of Save Changes */}
+                                <ReportStatusBadge
+                                    reportId={reportId}
+                                    status={formData.status ?? 'Pending'}
+                                    onStatusChange={handleStatusChange}
+                                />
                                 {hasChanges && (
-                                    <span className="ml-3 px-2 py-1 bg-orange-100 text-orange-800 text-xs font-semibold rounded-full">
+                                    <span className="px-2 py-1 bg-orange-100 text-orange-800 text-xs font-semibold rounded-full">
                                         Unsaved Changes
                                     </span>
                                 )}
-                            </p>
+                            </div>
                         </div>
                         <button
                             onClick={() => navigate(`/admin-dashboard/reports/${reportId}`)}
-                            className="text-gray-600 hover:text-gray-900"
+                            className="text-gray-400 hover:text-gray-700 transition-colors mt-1"
                         >
                             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -374,8 +364,8 @@ const ReviewReport = () => {
                             {saving ? (
                                 <>
                                     <svg className="animate-spin w-5 h-5 mr-2" fill="none" viewBox="0 0 24 24">
-                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
                                     </svg>
                                     Saving...
                                 </>
@@ -410,7 +400,7 @@ const ReviewReport = () => {
                     </div>
                 </div>
 
-                {/* Patient Information (Read-only) */}
+                {/* ── Patient Demographics (Read-only) ── */}
                 <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
                     <h2 className="text-xl font-bold text-gray-900 mb-4 flex items-center">
                         <svg className="w-6 h-6 mr-2 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -425,7 +415,7 @@ const ReviewReport = () => {
                     </div>
                 </div>
 
-                {/* Filling Phase Parameters (Editable) */}
+                {/* ── Filling Phase ── */}
                 <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
                     <h2 className="text-xl font-bold text-indigo-600 mb-4 flex items-center">
                         <span className="text-2xl mr-2">📊</span>
@@ -435,40 +425,33 @@ const ReviewReport = () => {
                         <InputField label="First Sensation Volume" field="firstSensationVolume" type="number" unit="ml" info="Volume at which patient first feels bladder filling" />
                         <InputField label="First Sensation Pves" field="firstSensationPves" type="number" unit="cmH₂O" />
                         <InputField label="First Sensation Pdet" field="firstSensationPdet" type="number" unit="cmH₂O" />
-                        
                         <InputField label="First Desire Volume" field="firstDesireVolume" type="number" unit="ml" />
                         <InputField label="First Desire Pves" field="firstDesirePves" type="number" unit="cmH₂O" />
                         <InputField label="First Desire Pdet" field="firstDesirePdet" type="number" unit="cmH₂O" />
-                        
                         <InputField label="Normal Desire Volume" field="normalDesireVolume" type="number" unit="ml" />
                         <InputField label="Normal Desire Pves" field="normalDesirePves" type="number" unit="cmH₂O" />
                         <InputField label="Normal Desire Pdet" field="normalDesirePdet" type="number" unit="cmH₂O" />
-                        
                         <InputField label="Strong Desire Volume" field="strongDesireVolume" type="number" unit="ml" />
                         <InputField label="Strong Desire Pves" field="strongDesirePves" type="number" unit="cmH₂O" />
                         <InputField label="Strong Desire Pdet" field="strongDesirePdet" type="number" unit="cmH₂O" />
-                        
                         <InputField label="Urgency Volume" field="urgencyVolume" type="number" unit="ml" />
                         <InputField label="Urgency Pves" field="urgencyPves" type="number" unit="cmH₂O" />
                         <InputField label="Urgency Pdet" field="urgencyPdet" type="number" unit="cmH₂O" />
-                        
                         <InputField label="Maximum Cystometric Capacity" field="maximumCystometricCapacity" type="number" unit="ml" info="Maximum bladder capacity" />
                         <InputField label="Detrusor Pressure at MCC" field="detrusorPressureAtMCC" type="number" unit="cmH₂O" />
                         <InputField label="Bladder Compliance" field="bladderCompliance" type="number" unit="ml/cmH₂O" info="Change in volume / Change in pressure" />
-                        
                         <InputField label="Infused Volume" field="infusedVolume" type="number" unit="ml" />
                     </div>
-                    
                     <div className="mt-4">
-                        <CheckboxField 
-                            label="Involuntary Detrusor Contractions Present" 
+                        <CheckboxField
+                            label="Involuntary Detrusor Contractions Present"
                             field="involuntaryDetrusorContractions"
                             info="Uninhibited bladder contractions during filling"
                         />
                     </div>
                 </div>
 
-                {/* Voiding Phase Parameters (Editable) */}
+                {/* ── Voiding Phase ── */}
                 <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
                     <h2 className="text-xl font-bold text-teal-600 mb-4 flex items-center">
                         <span className="text-2xl mr-2">💧</span>
@@ -478,24 +461,20 @@ const ReviewReport = () => {
                         <InputField label="Voided Volume" field="voidedVolume" type="number" unit="ml" />
                         <InputField label="Maximum Flow Rate (Qmax)" field="maximumFlowRateQmax" type="number" unit="ml/s" info="Peak urinary flow rate" />
                         <InputField label="Average Flow Rate (Qura)" field="averageVoidingFlowRateQura" type="number" unit="ml/s" />
-                        
                         <InputField label="Time to Qmax" field="timeToQmax" type="number" unit="seconds" />
                         <InputField label="Voiding Time" field="voidingTime" type="number" unit="seconds" />
                         <InputField label="Detrusor Pressure at Qmax" field="detrusorPressureAtQmax" type="number" unit="cmH₂O" />
-                        
                         <InputField label="Post-Void Residual (PVR)" field="postVoidResidualVolume" type="number" unit="ml" info="Urine remaining after voiding" />
                         <InputField label="Voiding Vesical Pressure" field="voidingVesicalPressure" type="number" unit="cmH₂O" />
                         <InputField label="Voiding Abdominal Pressure" field="voidingAbdominalPressure" type="number" unit="cmH₂O" />
-                        
                         <InputField label="Voiding Detrusor Pressure" field="voidingDetrusorPressure" type="number" unit="cmH₂O" />
                         <InputField label="Bladder Contractility Index (BCI)" field="bladderContractilityIndex" type="number" info="PdetQmax + 5 × Qmax (Normal: >100)" />
                         <InputField label="Bladder Outlet Obstruction Index (BOOI)" field="bladderOutletObstructionIndex" type="number" info="PdetQmax - 2 × Qmax (>40: Obstructed)" />
-                        
                         <InputField label="Abrams-Griffiths Number" field="AGNumber" info="Alternative obstruction index" />
                     </div>
                 </div>
 
-                {/* Pressure Measurements (Editable) */}
+                {/* ── Pressure Measurements ── */}
                 <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
                     <h2 className="text-xl font-bold text-purple-600 mb-4 flex items-center">
                         <span className="text-2xl mr-2">⚡</span>
@@ -508,7 +487,7 @@ const ReviewReport = () => {
                     </div>
                 </div>
 
-                {/* EMG Activity (Editable) */}
+                {/* ── EMG Activity ── */}
                 <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
                     <h2 className="text-xl font-bold text-green-600 mb-4 flex items-center">
                         <span className="text-2xl mr-2">📈</span>
@@ -521,7 +500,7 @@ const ReviewReport = () => {
                     </div>
                 </div>
 
-                {/* Diagnostic Findings (Editable) */}
+                {/* ── Diagnostic Findings ── */}
                 <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
                     <h2 className="text-xl font-bold text-red-600 mb-4 flex items-center">
                         <span className="text-2xl mr-2">🏥</span>
@@ -536,7 +515,7 @@ const ReviewReport = () => {
                     <TextareaField label="Diagnostic Comments" field="diagnosticComments" info="Detailed clinical interpretation" />
                 </div>
 
-                {/* Clinical Team (Editable) */}
+                {/* ── Clinical Team ── */}
                 <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
                     <h2 className="text-xl font-bold text-indigo-600 mb-4 flex items-center">
                         <span className="text-2xl mr-2">👨‍⚕️</span>
@@ -546,14 +525,12 @@ const ReviewReport = () => {
                         <InputField label="Treating Physician" field="treatingPhysician" />
                         <InputField label="Urodynamics Technician" field="urodynamicsTechnician" />
                         <div>
-                            <InputField 
-                                label="Reviewed By" 
-                                field="reviewedBy" 
+                            <InputField
+                                label="Reviewed By"
+                                field="reviewedBy"
                                 info="Auto-populated with your name"
                             />
-                            <p className="mt-1 text-xs text-gray-500">
-                                ✓ Current User
-                            </p>
+                            <p className="mt-1 text-xs text-gray-500">✓ Current User</p>
                         </div>
                         <div className="md:col-span-3">
                             <InputField label="External Report Link" field="ReportLink" />
@@ -561,83 +538,97 @@ const ReviewReport = () => {
                     </div>
                 </div>
 
-                {/* Verification Status */}
+                {/* ── Graph Upload — own save, doesn't affect Save Changes ── */}
+                <ReportGraphUpload
+                    reportId={reportId}
+                    images={formData.images || []}
+                    onImagesUpdate={handleImagesUpdate}
+                />
+
+                {/* ── Report Status — own save via PATCH ── */}
                 <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-xl shadow-md border-2 border-green-200 p-6">
                     <h2 className="text-xl font-bold text-green-700 mb-4 flex items-center">
                         <span className="text-2xl mr-2">✅</span>
-                        Verification Status
+                        Report Status
                     </h2>
-                    
                     <div className="bg-white rounded-lg p-6 border border-green-200">
-                        <p className="text-sm text-gray-600 mb-4">
-                            Mark this report as verified after reviewing all clinical data and ensuring accuracy.
+                        <p className="text-sm text-gray-500 mb-5">
+                            Status updates instantly — no need to click Save Changes.
                         </p>
-                        
-                        <div className="space-y-3">
-                            <label className={`flex items-center p-4 border-2 rounded-lg cursor-pointer transition-all hover:bg-gray-50 ${
-                                formData.verified === false ? 'border-orange-500 bg-orange-50' : 'border-gray-300'
-                            }`}>
-                                <input
-                                    type="radio"
-                                    name="verified"
-                                    checked={formData.verified === false}
-                                    onChange={() => handleInputChange('verified', false)}
-                                    className="w-5 h-5 text-orange-600 border-gray-300 focus:ring-orange-500"
-                                />
-                                <div className="ml-4">
-                                    <div className="flex items-center">
-                                        <span className="text-2xl mr-2">⏳</span>
-                                        <span className="font-semibold text-gray-900">Pending Review</span>
-                                    </div>
-                                    <p className="text-sm text-gray-600 mt-1">
-                                        Report requires verification by a medical professional
-                                    </p>
-                                </div>
-                            </label>
 
-                            <label className={`flex items-center p-4 border-2 rounded-lg cursor-pointer transition-all hover:bg-gray-50 ${
-                                formData.verified === true ? 'border-green-500 bg-green-50' : 'border-gray-300'
-                            }`}>
-                                <input
-                                    type="radio"
-                                    name="verified"
-                                    checked={formData.verified === true}
-                                    onChange={() => handleInputChange('verified', true)}
-                                    className="w-5 h-5 text-green-600 border-gray-300 focus:ring-green-500"
-                                />
-                                <div className="ml-4">
-                                    <div className="flex items-center">
-                                        <span className="text-2xl mr-2">✓</span>
-                                        <span className="font-semibold text-gray-900">Verified</span>
-                                    </div>
-                                    <p className="text-sm text-gray-600 mt-1">
-                                        All data has been reviewed and confirmed accurate
-                                    </p>
-                                </div>
-                            </label>
-                        </div>
+                        <ReportStatusBadge
+                            reportId={reportId}
+                            status={formData.status ?? 'Pending'}
+                            onStatusChange={handleStatusChange}
+                        />
 
-                        {formData.verified && (
-                            <div className="mt-4 p-4 bg-green-100 border border-green-300 rounded-lg">
-                                <div className="flex items-start">
-                                    <svg className="w-5 h-5 text-green-600 mt-0.5 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                        {/* Contextual info card per status */}
+                        <div className="mt-5 pt-5 border-t border-gray-100">
+                            {formData.status === 'Verified' && (
+                                <div className="flex items-start gap-3 p-4 bg-green-50 border border-green-200 rounded-lg">
+                                    <svg className="w-5 h-5 text-green-600 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
                                         <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                                     </svg>
                                     <div>
-                                        <p className="text-sm font-semibold text-green-800">
-                                            Report will be marked as verified
-                                        </p>
-                                        <p className="text-xs text-green-700 mt-1">
-                                            Verified by: <span className="font-semibold">{formData.reviewedBy || getCurrentUser()}</span>
+                                        <p className="text-sm font-semibold text-green-800">Report Verified</p>
+                                        <p className="text-xs text-green-700 mt-0.5">
+                                            By: <span className="font-semibold">{formData.reviewedBy || getCurrentUser()}</span>
+                                            {formData.verifiedAt && (
+                                                <span className="ml-2 opacity-75">
+                                                    · {new Date(formData.verifiedAt).toLocaleDateString('en-US', {
+                                                        month: 'short', day: 'numeric', year: 'numeric'
+                                                    })}
+                                                </span>
+                                            )}
                                         </p>
                                     </div>
                                 </div>
-                            </div>
-                        )}
+                            )}
+                            {formData.status === 'Rejected' && (
+                                <div className="flex items-start gap-3 p-4 bg-red-50 border border-red-200 rounded-lg">
+                                    <svg className="w-5 h-5 text-red-500 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                                    </svg>
+                                    <div>
+                                        <p className="text-sm font-semibold text-red-800">Report Rejected</p>
+                                        <p className="text-xs text-red-600 mt-0.5">
+                                            This report has been flagged and requires correction or re-submission.
+                                        </p>
+                                    </div>
+                                </div>
+                            )}
+                            {formData.status === 'Needs Review' && (
+                                <div className="flex items-start gap-3 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                                    <svg className="w-5 h-5 text-blue-500 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                    </svg>
+                                    <div>
+                                        <p className="text-sm font-semibold text-blue-800">Awaiting Review</p>
+                                        <p className="text-xs text-blue-600 mt-0.5">
+                                            Images uploaded. Ready for physician review.
+                                        </p>
+                                    </div>
+                                </div>
+                            )}
+                            {(formData.status === 'Pending' || !formData.status) && (
+                                <div className="flex items-start gap-3 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+                                    <svg className="w-5 h-5 text-yellow-500 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                    </svg>
+                                    <div>
+                                        <p className="text-sm font-semibold text-yellow-800">Pending</p>
+                                        <p className="text-xs text-yellow-600 mt-0.5">
+                                            Upload phase graphs above to advance this report to Needs Review.
+                                        </p>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
                     </div>
                 </div>
 
-                {/* Bottom Actions */}
+                {/* ── Bottom Actions ── */}
                 <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
                     <div className="flex flex-wrap gap-3">
                         <button
@@ -648,8 +639,8 @@ const ReviewReport = () => {
                             {saving ? (
                                 <>
                                     <svg className="animate-spin w-5 h-5 mr-2" fill="none" viewBox="0 0 24 24">
-                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
                                     </svg>
                                     Saving...
                                 </>
@@ -683,6 +674,7 @@ const ReviewReport = () => {
                         </button>
                     </div>
                 </div>
+
             </div>
         </div>
     );

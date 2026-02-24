@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 
 
-const API_URL = 'https://data-backend-kappa.vercel.app/';
+const API_URL = import.meta.env.API;
 
 const Settings = () => {
     const [activeTab, setActiveTab] = useState('profile');

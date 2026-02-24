@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { diseaseAPI } from '../../utils/analytics.utils';
-
+import Analytics from './Analytics';
 const DiseaseStatistics = () => {
     const [statistics, setStatistics] = useState(null);
     const [loading, setLoading] = useState(true);
@@ -179,7 +179,7 @@ const DiseaseStatistics = () => {
                                     </p>
                                 </div>
 
-                                <button
+                                {/* <button
                                     onClick={(e) => {
                                         e.stopPropagation();
                                         viewDiseasePatients(disease.code);
@@ -187,7 +187,7 @@ const DiseaseStatistics = () => {
                                     className={`w-full mt-4 px-4 py-2 ${colors.bg} ${colors.text} rounded-lg font-medium text-sm ${colors.hover} transition-colors`}
                                 >
                                     View Patients →
-                                </button>
+                                </button> */}
                             </div>
                         );
                     })
@@ -200,6 +200,8 @@ const DiseaseStatistics = () => {
                     </div>
                 )}
             </div>
+            {/* Analytics Component */}
+            <Analytics />
         </div>
     );
 };

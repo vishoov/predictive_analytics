@@ -28,9 +28,11 @@ const Login = () => {
         e.preventDefault();
         setError(null);
         setIsLoading(true);
-        const api= "https://data-backend-kappa.vercel.app/"
+        const api = import.meta.env.API || 'http://localhost:3000';
+        console.log('API Base URL:', api);
+
         try {
-            const response = await axios.post(`${api}users/login`, {
+            const response = await axios.post(`${api}/users/login`, {
                 email,
                 password
             });

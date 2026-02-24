@@ -28,7 +28,7 @@ const Login = () => {
         e.preventDefault();
         setError(null);
         setIsLoading(true);
-        const api = import.meta.env.API || 'http://localhost:3000';
+        const api = import.meta.env.API || 'https://data-backend-kappa.vercel.app/';
         console.log('API Base URL:', api);
 
         try {

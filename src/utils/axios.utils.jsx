@@ -3,13 +3,14 @@ import axios from 'axios';
 // Create axios instance
 const api = axios.create({
 
-    baseURL: import.meta.env.API || 'http://localhost:3000/',
+    baseURL: import.meta.env.API || 'https://data-backend-kappa.vercel.app/',
 });
 
 // Add token to all requests automatically
 api.interceptors.request.use(
     (config) => {
         const token = localStorage.getItem('token');
+
         if (token) {
             config.headers.Authorization = `Bearer ${token}`;
         }

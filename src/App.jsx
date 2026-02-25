@@ -13,39 +13,42 @@ import ReportDetail from './components/reports/ReportDetails.jsx'
 import ReviewReport from './components/reviews/ReviewReport.jsx'
 import Users from './components/users/Users.jsx'
 import Settings from './pages/Settings.jsx'
-import NewReport from './components/reports/NewReport.jsx'
-import GraphUpload from './components/upload/GraphUpload.jsx'
+
+import ReportView from './components/reports/NewReport.jsx'
+import CreateReport from './components/reports/CreateReport.jsx'
+
 const App = () => {
   return (
     <BrowserRouter>
       <Routes>
         <Route path="/" element={<Navigate to="/admin-dashboard" replace />} />
         <Route path='/login' element={<Login />} />
-        
-        <Route 
-          path="/admin-dashboard" 
+
+        <Route
+          path="/admin-dashboard"
           element={
             <PrivateRoutes>
               <RoleBasedRoutes requiredRole={['admin']}>
                 <AdminDashboard />
               </RoleBasedRoutes>
             </PrivateRoutes>
-          } 
+          }
         >
           <Route index element={<AdminSummary />} />
           <Route path="diagnostics" element={<DiseaseStatistics />} />
           <Route path="reports" element={<ReportsList />} />
+
+          {/* ✅ 'new' must come BEFORE ':reportId' — otherwise 'new' matches as an ID */}
+          {/* <Route path="reports/new" element={<ReportView />} /> */}
+          <Route path="create-report" element={<CreateReport />} />
+          {/* ✅ Dynamic param routes after static ones */}
           <Route path="reports/:reportId" element={<ReportDetail />} />
-          {/* <Route path="reports/new" element={<RestrictedFeature />} /> */}
-          <Route path="reports/new" element={<NewReport />} />
+
+          {/* ✅ Use relative path — not absolute — inside nested routes */}
+          <Route path="reports/:reportId/review" element={<ReviewReport />} />
 
           <Route path="reviews" element={<ReviewsList />} />
-          {/* <Route path="users" element={<Users />} /> */}
           <Route path="settings" element={<Settings />} />
-          {/* <Route path="image-upload" element={<GraphUpload />} /> */}
-
-          <Route path="/admin-dashboard/reports/:reportId/review" element={<ReviewReport />} />
-          {/* <Route path="*" element={<Navigate to="/admin-dashboard" replace />} /> */}
         </Route>
 
         <Route path="/user-dashboard" element={<UserDashboard />} />

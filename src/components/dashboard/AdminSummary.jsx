@@ -285,7 +285,7 @@ const AdminSummary = () => {
                     <h2 className="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h2>
                     <div className="grid grid-cols-2 gap-3">
                         <button
-                            onClick={() => window.location.href = '/admin-dashboard/reports/new'}
+                            onClick={() => window.location.href = '/admin-dashboard/create-report'}
                             className="flex flex-col items-center justify-center p-4 bg-gradient-to-br from-blue-50 to-blue-100 hover:from-blue-100 hover:to-blue-200 rounded-lg transition-all transform hover:scale-105"
                         >
                             <svg className="w-8 h-8 text-blue-600 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">

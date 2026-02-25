@@ -4,6 +4,96 @@ import { reportsAPI } from '../../utils/analytics.utils';
 import ReportGraphUpload from './ReportGraphUpload.jsx';
 import ReportStatusBadge from './ReportStatusBadge.jsx';
 
+// ── Field components OUTSIDE ReviewReport to prevent remount on every keystroke ──
+
+const InputField = ({ label, field, type = 'text', unit, min, max, info, disabled = false, value, onChange, error }) => {
+    const getDisplayValue = () => {
+        if (value === null || value === undefined) return '';
+        return value;
+    };
+
+    return (
+        <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+                {label} {unit && <span className="text-gray-500 text-xs">({unit})</span>}
+                {info && (
+                    <span className="ml-2 text-gray-400 cursor-help" title={info}>
+                        <svg className="w-4 h-4 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                    </span>
+                )}
+            </label>
+            <input
+                type={type}
+                value={getDisplayValue()}
+                onChange={(e) => onChange(field, e.target.value)}
+                min={min}
+                max={max}
+                disabled={disabled}
+                className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 ${
+                    disabled ? 'bg-gray-100 cursor-not-allowed' : ''
+                } ${error ? 'border-red-500' : 'border-gray-300'}`}
+            />
+            {error && <p className="mt-1 text-xs text-red-600">{error}</p>}
+        </div>
+    );
+};
+
+const TextareaField = ({ label, field, info, disabled = false, value, onChange }) => {
+    const getDisplayValue = () => {
+        if (value === null || value === undefined) return '';
+        return value;
+    };
+
+    return (
+        <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+                {label}
+                {info && (
+                    <span className="ml-2 text-gray-400 cursor-help" title={info}>
+                        <svg className="w-4 h-4 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                    </span>
+                )}
+            </label>
+            <textarea
+                value={getDisplayValue()}
+                onChange={(e) => onChange(field, e.target.value)}
+                disabled={disabled}
+                rows={3}
+                className={`w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 ${
+                    disabled ? 'bg-gray-100 cursor-not-allowed' : ''
+                }`}
+            />
+        </div>
+    );
+};
+
+const CheckboxField = ({ label, field, info, value, onChange }) => (
+    <div className="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg">
+        <input
+            type="checkbox"
+            checked={value || false}
+            onChange={(e) => onChange(field, e.target.checked)}
+            className="w-5 h-5 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
+        />
+        <label className="text-sm font-medium text-gray-700">
+            {label}
+            {info && (
+                <span className="ml-2 text-gray-400 cursor-help" title={info}>
+                    <svg className="w-4 h-4 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                </span>
+            )}
+        </label>
+    </div>
+);
+
+// ── Main component ────────────────────────────────────────────────────────────
+
 const ReviewReport = () => {
     const { reportId } = useParams();
     const navigate = useNavigate();
@@ -16,7 +106,6 @@ const ReviewReport = () => {
     const [hasChanges, setHasChanges] = useState(false);
     const [validationErrors, setValidationErrors] = useState({});
 
-    // ── Current user ──────────────────────────────────────────────────────────
     const getCurrentUser = () => {
         const user = localStorage.getItem('user');
         if (user) {
@@ -30,7 +119,7 @@ const ReviewReport = () => {
         return localStorage.getItem('username') || localStorage.getItem('name') || '';
     };
 
-    // ── Fetch report ──────────────────────────────────────────────────────────
+    // ── Fetch ─────────────────────────────────────────────────────────────────
     useEffect(() => {
         let isMounted = true;
 
@@ -65,8 +154,7 @@ const ReviewReport = () => {
         return () => { isMounted = false; };
     }, [reportId]);
 
-    // ── Detect unsaved changes ─────────────────────────────────────────────────
-    // images, status, verifiedAt are managed by their own routes — exclude from diff
+    // ── Change detection — ignore images/status/verifiedAt ───────────────────
     useEffect(() => {
         if (originalReport && formData) {
             const strip = ({ images, status, verifiedAt, ...rest }) => rest;
@@ -75,7 +163,7 @@ const ReviewReport = () => {
         }
     }, [formData, originalReport]);
 
-    // ── Input handler ─────────────────────────────────────────────────────────
+    // ── Handlers ──────────────────────────────────────────────────────────────
     const handleInputChange = (field, value) => {
         setFormData(prev => ({ ...prev, [field]: value }));
         if (validationErrors[field]) {
@@ -87,41 +175,32 @@ const ReviewReport = () => {
         }
     };
 
-    // ── Image + status sync ───────────────────────────────────────────────────
-    // Called by ReportGraphUpload after upload or delete
     const handleImagesUpdate = (updatedImages, newStatus) => {
         const patch = {
             images: updatedImages,
             ...(newStatus ? { status: newStatus } : {}),
         };
-        // Sync both so change detection stays clean
         setFormData(prev => ({ ...prev, ...patch }));
         setOriginalReport(prev => ({ ...prev, ...patch }));
     };
 
-    // ── Status change sync ────────────────────────────────────────────────────
-    // Called by ReportStatusBadge after a successful PATCH
     const handleStatusChange = (newStatus) => {
         setFormData(prev => ({ ...prev, status: newStatus }));
         setOriginalReport(prev => ({ ...prev, status: newStatus }));
     };
 
-    // ── Validation ────────────────────────────────────────────────────────────
     const validateForm = () => {
         const errors = {};
-
         if (formData.ipssScore !== null && formData.ipssScore !== undefined && formData.ipssScore !== '') {
             const score = Number(formData.ipssScore);
             if (isNaN(score) || score < 0 || score > 35) {
                 errors.ipssScore = 'IPSS Score must be between 0 and 35';
             }
         }
-
         setValidationErrors(errors);
         return Object.keys(errors).length === 0;
     };
 
-    // ── Reset ─────────────────────────────────────────────────────────────────
     const handleReset = () => {
         if (window.confirm('Are you sure you want to reset all changes?')) {
             setFormData(originalReport);
@@ -130,7 +209,6 @@ const ReviewReport = () => {
         }
     };
 
-    // ── Save ──────────────────────────────────────────────────────────────────
     const handleSave = async () => {
         if (!validateForm()) {
             alert('Please fix validation errors before saving');
@@ -163,14 +241,12 @@ const ReviewReport = () => {
                         : Number(cleanedData[field]);
             });
 
-            // These have their own dedicated routes — never send in PUT body
             delete cleanedData.status;
             delete cleanedData.verifiedAt;
             delete cleanedData.images;
 
             await reportsAPI.update(reportId, cleanedData);
 
-            // Sync original so hasChanges resets to false
             setOriginalReport(prev => ({ ...prev, ...cleanedData }));
 
             alert('Report updated successfully!');
@@ -226,97 +302,6 @@ const ReviewReport = () => {
         );
     }
 
-    // ── Field components (after formData is guaranteed non-null) ──────────────
-    const InputField = ({ label, field, type = 'text', unit, min, max, info, disabled = false }) => {
-        const getDisplayValue = () => {
-            const value = formData[field];
-            if (value === null || value === undefined) return '';
-            return value;
-        };
-
-        return (
-            <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                    {label} {unit && <span className="text-gray-500 text-xs">({unit})</span>}
-                    {info && (
-                        <span className="ml-2 text-gray-400 cursor-help" title={info}>
-                            <svg className="w-4 h-4 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                            </svg>
-                        </span>
-                    )}
-                </label>
-                <input
-                    type={type}
-                    value={getDisplayValue()}
-                    onChange={(e) => handleInputChange(field, e.target.value)}
-                    min={min}
-                    max={max}
-                    disabled={disabled}
-                    className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 ${
-                        disabled ? 'bg-gray-100 cursor-not-allowed' : ''
-                    } ${validationErrors[field] ? 'border-red-500' : 'border-gray-300'}`}
-                />
-                {validationErrors[field] && (
-                    <p className="mt-1 text-xs text-red-600">{validationErrors[field]}</p>
-                )}
-            </div>
-        );
-    };
-
-    const TextareaField = ({ label, field, info, disabled = false }) => {
-        const getDisplayValue = () => {
-            const value = formData[field];
-            if (value === null || value === undefined) return '';
-            return value;
-        };
-
-        return (
-            <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                    {label}
-                    {info && (
-                        <span className="ml-2 text-gray-400 cursor-help" title={info}>
-                            <svg className="w-4 h-4 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                            </svg>
-                        </span>
-                    )}
-                </label>
-                <textarea
-                    value={getDisplayValue()}
-                    onChange={(e) => handleInputChange(field, e.target.value)}
-                    disabled={disabled}
-                    rows={3}
-                    className={`w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 ${
-                        disabled ? 'bg-gray-100 cursor-not-allowed' : ''
-                    }`}
-                />
-            </div>
-        );
-    };
-
-    const CheckboxField = ({ label, field, info }) => (
-        <div className="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg">
-            <input
-                type="checkbox"
-                checked={formData[field] || false}
-                onChange={(e) => handleInputChange(field, e.target.checked)}
-                className="w-5 h-5 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
-            />
-            <label className="text-sm font-medium text-gray-700">
-                {label}
-                {info && (
-                    <span className="ml-2 text-gray-400 cursor-help" title={info}>
-                        <svg className="w-4 h-4 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg>
-                    </span>
-                )}
-            </label>
-        </div>
-    );
-
     // ── Render ────────────────────────────────────────────────────────────────
     return (
         <div className="min-h-screen bg-gray-50 p-4 md:p-6">
@@ -331,7 +316,6 @@ const ReviewReport = () => {
                                 <p className="text-sm text-gray-600">
                                     Patient ID: <span className="font-semibold">{formData.patientId}</span>
                                 </p>
-                                {/* Status badge — saves instantly via PATCH, independent of Save Changes */}
                                 <ReportStatusBadge
                                     reportId={reportId}
                                     status={formData.status ?? 'Pending'}
@@ -354,7 +338,7 @@ const ReviewReport = () => {
                         </button>
                     </div>
 
-                    {/* Action Buttons */}
+                    {/* Top Action Buttons */}
                     <div className="flex flex-wrap gap-3">
                         <button
                             onClick={handleSave}
@@ -409,9 +393,9 @@ const ReviewReport = () => {
                         Patient Demographics (Read-Only)
                     </h2>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <InputField label="Patient ID" field="patientId" disabled />
-                        <InputField label="Age" field="age" type="number" unit="years" disabled />
-                        <InputField label="Gender" field="gender" disabled />
+                        <InputField label="Patient ID" field="patientId" disabled value={formData.patientId} onChange={handleInputChange} />
+                        <InputField label="Age" field="age" type="number" unit="years" disabled value={formData.age} onChange={handleInputChange} />
+                        <InputField label="Gender" field="gender" disabled value={formData.gender} onChange={handleInputChange} />
                     </div>
                 </div>
 
@@ -422,31 +406,33 @@ const ReviewReport = () => {
                         Filling Phase Cystometry
                     </h2>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <InputField label="First Sensation Volume" field="firstSensationVolume" type="number" unit="ml" info="Volume at which patient first feels bladder filling" />
-                        <InputField label="First Sensation Pves" field="firstSensationPves" type="number" unit="cmH₂O" />
-                        <InputField label="First Sensation Pdet" field="firstSensationPdet" type="number" unit="cmH₂O" />
-                        <InputField label="First Desire Volume" field="firstDesireVolume" type="number" unit="ml" />
-                        <InputField label="First Desire Pves" field="firstDesirePves" type="number" unit="cmH₂O" />
-                        <InputField label="First Desire Pdet" field="firstDesirePdet" type="number" unit="cmH₂O" />
-                        <InputField label="Normal Desire Volume" field="normalDesireVolume" type="number" unit="ml" />
-                        <InputField label="Normal Desire Pves" field="normalDesirePves" type="number" unit="cmH₂O" />
-                        <InputField label="Normal Desire Pdet" field="normalDesirePdet" type="number" unit="cmH₂O" />
-                        <InputField label="Strong Desire Volume" field="strongDesireVolume" type="number" unit="ml" />
-                        <InputField label="Strong Desire Pves" field="strongDesirePves" type="number" unit="cmH₂O" />
-                        <InputField label="Strong Desire Pdet" field="strongDesirePdet" type="number" unit="cmH₂O" />
-                        <InputField label="Urgency Volume" field="urgencyVolume" type="number" unit="ml" />
-                        <InputField label="Urgency Pves" field="urgencyPves" type="number" unit="cmH₂O" />
-                        <InputField label="Urgency Pdet" field="urgencyPdet" type="number" unit="cmH₂O" />
-                        <InputField label="Maximum Cystometric Capacity" field="maximumCystometricCapacity" type="number" unit="ml" info="Maximum bladder capacity" />
-                        <InputField label="Detrusor Pressure at MCC" field="detrusorPressureAtMCC" type="number" unit="cmH₂O" />
-                        <InputField label="Bladder Compliance" field="bladderCompliance" type="number" unit="ml/cmH₂O" info="Change in volume / Change in pressure" />
-                        <InputField label="Infused Volume" field="infusedVolume" type="number" unit="ml" />
+                        <InputField label="First Sensation Volume" field="firstSensationVolume" type="number" unit="ml" info="Volume at which patient first feels bladder filling" value={formData.firstSensationVolume} onChange={handleInputChange} />
+                        <InputField label="First Sensation Pves" field="firstSensationPves" type="number" unit="cmH₂O" value={formData.firstSensationPves} onChange={handleInputChange} />
+                        <InputField label="First Sensation Pdet" field="firstSensationPdet" type="number" unit="cmH₂O" value={formData.firstSensationPdet} onChange={handleInputChange} />
+                        <InputField label="First Desire Volume" field="firstDesireVolume" type="number" unit="ml" value={formData.firstDesireVolume} onChange={handleInputChange} />
+                        <InputField label="First Desire Pves" field="firstDesirePves" type="number" unit="cmH₂O" value={formData.firstDesirePves} onChange={handleInputChange} />
+                        <InputField label="First Desire Pdet" field="firstDesirePdet" type="number" unit="cmH₂O" value={formData.firstDesirePdet} onChange={handleInputChange} />
+                        <InputField label="Normal Desire Volume" field="normalDesireVolume" type="number" unit="ml" value={formData.normalDesireVolume} onChange={handleInputChange} />
+                        <InputField label="Normal Desire Pves" field="normalDesirePves" type="number" unit="cmH₂O" value={formData.normalDesirePves} onChange={handleInputChange} />
+                        <InputField label="Normal Desire Pdet" field="normalDesirePdet" type="number" unit="cmH₂O" value={formData.normalDesirePdet} onChange={handleInputChange} />
+                        <InputField label="Strong Desire Volume" field="strongDesireVolume" type="number" unit="ml" value={formData.strongDesireVolume} onChange={handleInputChange} />
+                        <InputField label="Strong Desire Pves" field="strongDesirePves" type="number" unit="cmH₂O" value={formData.strongDesirePves} onChange={handleInputChange} />
+                        <InputField label="Strong Desire Pdet" field="strongDesirePdet" type="number" unit="cmH₂O" value={formData.strongDesirePdet} onChange={handleInputChange} />
+                        <InputField label="Urgency Volume" field="urgencyVolume" type="number" unit="ml" value={formData.urgencyVolume} onChange={handleInputChange} />
+                        <InputField label="Urgency Pves" field="urgencyPves" type="number" unit="cmH₂O" value={formData.urgencyPves} onChange={handleInputChange} />
+                        <InputField label="Urgency Pdet" field="urgencyPdet" type="number" unit="cmH₂O" value={formData.urgencyPdet} onChange={handleInputChange} />
+                        <InputField label="Maximum Cystometric Capacity" field="maximumCystometricCapacity" type="number" unit="ml" info="Maximum bladder capacity" value={formData.maximumCystometricCapacity} onChange={handleInputChange} />
+                        <InputField label="Detrusor Pressure at MCC" field="detrusorPressureAtMCC" type="number" unit="cmH₂O" value={formData.detrusorPressureAtMCC} onChange={handleInputChange} />
+                        <InputField label="Bladder Compliance" field="bladderCompliance" type="number" unit="ml/cmH₂O" info="Change in volume / Change in pressure" value={formData.bladderCompliance} onChange={handleInputChange} />
+                        <InputField label="Infused Volume" field="infusedVolume" type="number" unit="ml" value={formData.infusedVolume} onChange={handleInputChange} />
                     </div>
                     <div className="mt-4">
                         <CheckboxField
                             label="Involuntary Detrusor Contractions Present"
                             field="involuntaryDetrusorContractions"
                             info="Uninhibited bladder contractions during filling"
+                            value={formData.involuntaryDetrusorContractions}
+                            onChange={handleInputChange}
                         />
                     </div>
                 </div>
@@ -458,19 +444,19 @@ const ReviewReport = () => {
                         Voiding Phase & Flow Study
                     </h2>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <InputField label="Voided Volume" field="voidedVolume" type="number" unit="ml" />
-                        <InputField label="Maximum Flow Rate (Qmax)" field="maximumFlowRateQmax" type="number" unit="ml/s" info="Peak urinary flow rate" />
-                        <InputField label="Average Flow Rate (Qura)" field="averageVoidingFlowRateQura" type="number" unit="ml/s" />
-                        <InputField label="Time to Qmax" field="timeToQmax" type="number" unit="seconds" />
-                        <InputField label="Voiding Time" field="voidingTime" type="number" unit="seconds" />
-                        <InputField label="Detrusor Pressure at Qmax" field="detrusorPressureAtQmax" type="number" unit="cmH₂O" />
-                        <InputField label="Post-Void Residual (PVR)" field="postVoidResidualVolume" type="number" unit="ml" info="Urine remaining after voiding" />
-                        <InputField label="Voiding Vesical Pressure" field="voidingVesicalPressure" type="number" unit="cmH₂O" />
-                        <InputField label="Voiding Abdominal Pressure" field="voidingAbdominalPressure" type="number" unit="cmH₂O" />
-                        <InputField label="Voiding Detrusor Pressure" field="voidingDetrusorPressure" type="number" unit="cmH₂O" />
-                        <InputField label="Bladder Contractility Index (BCI)" field="bladderContractilityIndex" type="number" info="PdetQmax + 5 × Qmax (Normal: >100)" />
-                        <InputField label="Bladder Outlet Obstruction Index (BOOI)" field="bladderOutletObstructionIndex" type="number" info="PdetQmax - 2 × Qmax (>40: Obstructed)" />
-                        <InputField label="Abrams-Griffiths Number" field="AGNumber" info="Alternative obstruction index" />
+                        <InputField label="Voided Volume" field="voidedVolume" type="number" unit="ml" value={formData.voidedVolume} onChange={handleInputChange} />
+                        <InputField label="Maximum Flow Rate (Qmax)" field="maximumFlowRateQmax" type="number" unit="ml/s" info="Peak urinary flow rate" value={formData.maximumFlowRateQmax} onChange={handleInputChange} />
+                        <InputField label="Average Flow Rate (Qura)" field="averageVoidingFlowRateQura" type="number" unit="ml/s" value={formData.averageVoidingFlowRateQura} onChange={handleInputChange} />
+                        <InputField label="Time to Qmax" field="timeToQmax" type="number" unit="seconds" value={formData.timeToQmax} onChange={handleInputChange} />
+                        <InputField label="Voiding Time" field="voidingTime" type="number" unit="seconds" value={formData.voidingTime} onChange={handleInputChange} />
+                        <InputField label="Detrusor Pressure at Qmax" field="detrusorPressureAtQmax" type="number" unit="cmH₂O" value={formData.detrusorPressureAtQmax} onChange={handleInputChange} />
+                        <InputField label="Post-Void Residual (PVR)" field="postVoidResidualVolume" type="number" unit="ml" info="Urine remaining after voiding" value={formData.postVoidResidualVolume} onChange={handleInputChange} />
+                        <InputField label="Voiding Vesical Pressure" field="voidingVesicalPressure" type="number" unit="cmH₂O" value={formData.voidingVesicalPressure} onChange={handleInputChange} />
+                        <InputField label="Voiding Abdominal Pressure" field="voidingAbdominalPressure" type="number" unit="cmH₂O" value={formData.voidingAbdominalPressure} onChange={handleInputChange} />
+                        <InputField label="Voiding Detrusor Pressure" field="voidingDetrusorPressure" type="number" unit="cmH₂O" value={formData.voidingDetrusorPressure} onChange={handleInputChange} />
+                        <InputField label="Bladder Contractility Index (BCI)" field="bladderContractilityIndex" type="number" info="PdetQmax + 5 × Qmax (Normal: >100)" value={formData.bladderContractilityIndex} onChange={handleInputChange} />
+                        <InputField label="Bladder Outlet Obstruction Index (BOOI)" field="bladderOutletObstructionIndex" type="number" info="PdetQmax - 2 × Qmax (>40: Obstructed)" value={formData.bladderOutletObstructionIndex} onChange={handleInputChange} />
+                        <InputField label="Abrams-Griffiths Number" field="AGNumber" info="Alternative obstruction index" value={formData.AGNumber} onChange={handleInputChange} />
                     </div>
                 </div>
 
@@ -481,9 +467,9 @@ const ReviewReport = () => {
                         Pressure Measurements
                     </h2>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <InputField label="Maximum Vesical Pressure (Pves.max)" field="pvesMax" type="number" unit="cmH₂O" info="Peak bladder pressure" />
-                        <InputField label="Maximum Abdominal Pressure (Pabd.max)" field="pabdMax" type="number" unit="cmH₂O" info="Peak abdominal pressure" />
-                        <InputField label="Maximum Detrusor Pressure (Pdet.max)" field="pdetMax" type="number" unit="cmH₂O" info="Peak detrusor muscle pressure" />
+                        <InputField label="Maximum Vesical Pressure (Pves.max)" field="pvesMax" type="number" unit="cmH₂O" info="Peak bladder pressure" value={formData.pvesMax} onChange={handleInputChange} />
+                        <InputField label="Maximum Abdominal Pressure (Pabd.max)" field="pabdMax" type="number" unit="cmH₂O" info="Peak abdominal pressure" value={formData.pabdMax} onChange={handleInputChange} />
+                        <InputField label="Maximum Detrusor Pressure (Pdet.max)" field="pdetMax" type="number" unit="cmH₂O" info="Peak detrusor muscle pressure" value={formData.pdetMax} onChange={handleInputChange} />
                     </div>
                 </div>
 
@@ -494,9 +480,9 @@ const ReviewReport = () => {
                         Electromyography (EMG) Activity
                     </h2>
                     <div className="space-y-4">
-                        <TextareaField label="Sphincter EMG During Filling" field="sphincterEmgDuringFilling" info="External urethral sphincter activity during filling phase" />
-                        <TextareaField label="Sphincter EMG During Voiding" field="sphincterEmgDuringVoiding" info="External urethral sphincter activity during voiding phase" />
-                        <TextareaField label="General EMG Activity" field="emgActivity" info="Overall electromyography findings" />
+                        <TextareaField label="Sphincter EMG During Filling" field="sphincterEmgDuringFilling" info="External urethral sphincter activity during filling phase" value={formData.sphincterEmgDuringFilling} onChange={handleInputChange} />
+                        <TextareaField label="Sphincter EMG During Voiding" field="sphincterEmgDuringVoiding" info="External urethral sphincter activity during voiding phase" value={formData.sphincterEmgDuringVoiding} onChange={handleInputChange} />
+                        <TextareaField label="General EMG Activity" field="emgActivity" info="Overall electromyography findings" value={formData.emgActivity} onChange={handleInputChange} />
                     </div>
                 </div>
 
@@ -507,12 +493,12 @@ const ReviewReport = () => {
                         Diagnostic Findings
                     </h2>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                        <CheckboxField label="Detrusor Underactivity (DUA)" field="detrusorUnderactivityDUA" />
-                        <CheckboxField label="Bladder Outlet Obstruction (BOO)" field="bladderOutletObstructionBOO" />
-                        <CheckboxField label="Detrusor Overactivity (DOA)" field="detrusorOveractivityDOA" />
-                        <CheckboxField label="Detrusor-External Sphincter Dyssynergia (DESD)" field="detrusorExternalSphincterDyssynergiaDESD" />
+                        <CheckboxField label="Detrusor Underactivity (DUA)" field="detrusorUnderactivityDUA" value={formData.detrusorUnderactivityDUA} onChange={handleInputChange} />
+                        <CheckboxField label="Bladder Outlet Obstruction (BOO)" field="bladderOutletObstructionBOO" value={formData.bladderOutletObstructionBOO} onChange={handleInputChange} />
+                        <CheckboxField label="Detrusor Overactivity (DOA)" field="detrusorOveractivityDOA" value={formData.detrusorOveractivityDOA} onChange={handleInputChange} />
+                        <CheckboxField label="Detrusor-External Sphincter Dyssynergia (DESD)" field="detrusorExternalSphincterDyssynergiaDESD" value={formData.detrusorExternalSphincterDyssynergiaDESD} onChange={handleInputChange} />
                     </div>
-                    <TextareaField label="Diagnostic Comments" field="diagnosticComments" info="Detailed clinical interpretation" />
+                    <TextareaField label="Diagnostic Comments" field="diagnosticComments" info="Detailed clinical interpretation" value={formData.diagnosticComments} onChange={handleInputChange} />
                 </div>
 
                 {/* ── Clinical Team ── */}
@@ -522,30 +508,32 @@ const ReviewReport = () => {
                         Clinical Team & Documentation
                     </h2>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <InputField label="Treating Physician" field="treatingPhysician" />
-                        <InputField label="Urodynamics Technician" field="urodynamicsTechnician" />
+                        <InputField label="Treating Physician" field="treatingPhysician" value={formData.treatingPhysician} onChange={handleInputChange} />
+                        <InputField label="Urodynamics Technician" field="urodynamicsTechnician" value={formData.urodynamicsTechnician} onChange={handleInputChange} />
                         <div>
                             <InputField
                                 label="Reviewed By"
                                 field="reviewedBy"
                                 info="Auto-populated with your name"
+                                value={formData.reviewedBy}
+                                onChange={handleInputChange}
                             />
                             <p className="mt-1 text-xs text-gray-500">✓ Current User</p>
                         </div>
                         <div className="md:col-span-3">
-                            <InputField label="External Report Link" field="ReportLink" />
+                            <InputField label="External Report Link" field="ReportLink" value={formData.ReportLink} onChange={handleInputChange} />
                         </div>
                     </div>
                 </div>
 
-                {/* ── Graph Upload — own save, doesn't affect Save Changes ── */}
+                {/* ── Graph Upload ── */}
                 <ReportGraphUpload
                     reportId={reportId}
                     images={formData.images || []}
                     onImagesUpdate={handleImagesUpdate}
                 />
 
-                {/* ── Report Status — own save via PATCH ── */}
+                {/* ── Report Status ── */}
                 <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-xl shadow-md border-2 border-green-200 p-6">
                     <h2 className="text-xl font-bold text-green-700 mb-4 flex items-center">
                         <span className="text-2xl mr-2">✅</span>
@@ -562,7 +550,6 @@ const ReviewReport = () => {
                             onStatusChange={handleStatusChange}
                         />
 
-                        {/* Contextual info card per status */}
                         <div className="mt-5 pt-5 border-t border-gray-100">
                             {formData.status === 'Verified' && (
                                 <div className="flex items-start gap-3 p-4 bg-green-50 border border-green-200 rounded-lg">

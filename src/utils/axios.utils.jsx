@@ -3,7 +3,7 @@ import axios from 'axios';
 // Create axios instance
 const api = axios.create({
 
-    baseURL: import.meta.env.API || 'http://localhost:3000/',
+    baseURL: import.meta.env.VITE_API || 'http://localhost:3000/',
 });
 
 // Add token to all requests automatically

@@ -203,7 +203,7 @@ const Navbar = ({ onOpenMobileSidebar }) => {
                 {/* Right Section: Search, Notifications, User Menu */}
                 <div className="flex items-center space-x-3 ml-4">
                     {/* Search Bar */}
-                    <form onSubmit={handleSearch} className="relative hidden md:block">
+                    {/* <form onSubmit={handleSearch} className="relative hidden md:block">
                         <div className={`relative transition-all duration-300 ${
                             isSearchFocused ? 'w-80' : 'w-64'
                         }`}>
@@ -228,9 +228,9 @@ const Navbar = ({ onOpenMobileSidebar }) => {
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                             </svg>
                         </div>
-                    </form>
+                    </form> */}
 
-                    {/* Mobile Search Button */}
+                    {/* Mobile Search Button
                     <button
                         onClick={() => searchInputRef.current?.focus()}
                         className="md:hidden p-2 text-gray-600 hover:text-blue-600 hover:bg-gray-100 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -239,7 +239,7 @@ const Navbar = ({ onOpenMobileSidebar }) => {
                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                         </svg>
-                    </button>
+                    </button> */}
 
                
                     {/* User Menu Dropdown */}

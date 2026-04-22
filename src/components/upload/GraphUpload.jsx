@@ -68,6 +68,7 @@ const GraphUploadCard = memo(({ report, onUpdate }) => {
       setPreviews({ filling: null, voiding: null });
       onUpdate(report._id, res.data.images, null);
     } catch (err) {
+      console.log(err.message)
       setError(err.response?.data?.message || 'Upload failed. Please try again.');
     } finally {
       setUploading(false);

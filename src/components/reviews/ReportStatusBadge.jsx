@@ -70,7 +70,7 @@ const ReportStatusBadge = memo(({ reportId, status, onStatusChange, readonly = f
 
     // ── Interactive variant — dropdown to change status ───────────────────────
     return (
-        <div className="relative inline-block">
+        <div className="relative inline-block z-999">
             <button
                 type="button"
                 onClick={() => !updating && setOpen(prev => !prev)}

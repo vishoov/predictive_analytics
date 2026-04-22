@@ -16,12 +16,15 @@ import Settings from './pages/Settings.jsx'
 
 import ReportView from './components/reports/NewReport.jsx'
 import CreateReport from './components/reports/CreateReport.jsx'
+import Home from './pages/Home.jsx'
+import Review_Reels from './pages/Review_Reels.jsx'
 
 const App = () => {
   return (
     <BrowserRouter>
       <Routes>
-        <Route path="/" element={<Navigate to="/admin-dashboard" replace />} />
+        {/* <Route path="/" element={<Navigate to="/admin-dashboard" replace />} /> */}
+        <Route path='/' element={<Home/>} />
         <Route path='/login' element={<Login />} />
 
         <Route
@@ -37,7 +40,7 @@ const App = () => {
           <Route index element={<AdminSummary />} />
           <Route path="diagnostics" element={<DiseaseStatistics />} />
           <Route path="reports" element={<ReportsList />} />
-
+          <Route path='review_reels' element={<Review_Reels/>} />
           {/* ✅ 'new' must come BEFORE ':reportId' — otherwise 'new' matches as an ID */}
           {/* <Route path="reports/new" element={<ReportView />} /> */}
           <Route path="create-report" element={<CreateReport />} />

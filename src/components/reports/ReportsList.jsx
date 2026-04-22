@@ -191,7 +191,7 @@ const ReportsList = () => {
                         <p className="text-blue-100 text-sm md:text-base">View and manage all patient reports</p>
                     </div>
                     <button
-                        onClick={() => window.location.href = '/admin-dashboard/reports/new'}
+                        onClick={() => window.location.href = '/admin-dashboard/create-report'}
                         className="hidden md:flex items-center px-4 py-2 bg-white text-blue-600 rounded-lg font-medium hover:bg-blue-50 transition-colors"
                     >
                         <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">

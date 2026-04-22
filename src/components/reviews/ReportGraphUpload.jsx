@@ -209,6 +209,7 @@ const ReportGraphUpload = memo(({ reportId, images = [], onImagesUpdate }) => {
                 res.data.status
             );
         } catch (err) {
+            console.log(err.message)
             setGraphError(err.response?.data?.message || 'Upload failed. Please try again.');
         } finally {
             setGraphUploading(false);

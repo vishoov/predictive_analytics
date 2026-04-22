@@ -1,5 +1,7 @@
 @import "tailwindcss";
 
+
+
 :root {
   --font-family: 'Helvetica', sans-serif;
   --color-bg-light: #ffffff;
@@ -12,5 +14,8 @@ body {
   font-family: var(--font-family);
   background-color: var(--color-bg-light);
   color: var(--color-text-light);
+  scroll-behavior: smooth;
+  scroll-padding-top: 80px; /* Adjust if you have a fixed header */
+  overscroll-behavior: none;
 }
 

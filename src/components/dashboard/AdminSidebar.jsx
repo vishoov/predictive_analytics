@@ -48,16 +48,14 @@ const AdminSidebar = ({ isCollapsed, onToggle, isMobile = false, onClose }) => {
             path: '/admin-dashboard/reports',
             badge: null
         },
-        // {
-        //     icon: (
-        //         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-        //             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a2 2 0 002 2h12a2 2 0 002-2v-1m-4-4l-4-4m0 0l-4 4m4-4v12" />
-        //         </svg>
-        //     ),
-        //     label: 'Graphs',
-        //     path: '/admin-dashboard/image-upload',
-        //     badge: null
-        // }
+        {
+            icon: (
+                <svg width="24px" height="24px" viewBox="0 0 21 21" xmlns="http://www.w3.org/2000/svg" fill="#000000"><g id="SVGRepo_bgCarrier" stroke-width="0"></g><g id="SVGRepo_tracerCarrier" stroke-linecap="round" stroke-linejoin="round"></g><g id="SVGRepo_iconCarrier"> <g fill="none" fill-rule="evenodd" stroke="#000000" stroke-linecap="round" stroke-linejoin="round" transform="translate(2 5)"> <path d="m2.49368982.53498937 11.99999998-.03787142c1.0543566-.00331643 1.9207298.80983192 2.0003436 1.84444575l.0059666.15555425v6.00288205c0 1.1045695-.8954305 2-2 2h-12c-1.1045695 0-2-.8954305-2-2v-5.96502059c0-1.10210602.89158929-1.9965128 1.99368982-1.99999004z"></path> <path d="m7.5 7.5 3-2-3-2z" fill="#000000"></path> </g> </g></svg>
+            ),
+            label: 'Rapid Review',
+            path: '/admin-dashboard/review_reels',
+            badge: null
+        }
     ];
 
     const isActiveRoute = useCallback((path) => {

@@ -32,7 +32,7 @@ const Login = () => {
         console.log('API Base URL:', api);
 
         try {
-            const response = await axios.post(`${api}/users/login`, {
+            const response = await axios.post(`${api}users/login`, {
                 email,
                 password
             });
